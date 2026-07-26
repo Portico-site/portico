@@ -93,6 +93,7 @@
       ],
       "category": "Utility",
       "maintainer": "jolop",
+      "icon": "resources/icon-512.png",
       "extraResources": [
         { "from": "resources/llama-linux-${arch}", "to": "llama" },
         { "from": "resources/whisper-linux-${arch}", "to": "whisper" }
