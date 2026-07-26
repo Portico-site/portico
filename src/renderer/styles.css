@@ -996,6 +996,7 @@ input, textarea, select {
 #status-strip {
   display: flex;
   align-items: center;
+  justify-content: flex-end;   /* sits under the send button, not the text cursor */
   gap: 4px;
   padding: 9px 8px 0;
   font-size: 11.5px;
@@ -1020,7 +1021,9 @@ input, textarea, select {
 /* No rules between segments — spacing separates them, as in a terminal status bar.
    .st-sep is kept defined in case a denser layout wants it back. */
 .st-sep { display: none; }
-#status-strip #gen-speed { margin-left: auto; padding-right: 6px; }
+/* speed leads the group rather than being pushed to the far edge, so the three
+   controls stay together as one cluster on the right */
+#status-strip #gen-speed { margin-right: 4px; }
 
 /* conic ring: filled portion = share of the context window in use */
 .st-ring {
