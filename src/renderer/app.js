@@ -2298,7 +2298,7 @@ async function init() {
     if (again && !S.generating) { runImageGeneration(again.dataset.prompt); return; }
     if (e.target.closest('.img-cancel')) { api.cancelImage(); toast('Stopping image generation…'); }
   });
-  $('btn-search').innerHTML = ICONS.globe;
+  $('btn-search').innerHTML = ICONS.globe + '<span>Search</span>';
   $('btn-search').addEventListener('click', async () => { await toggleSearch(); if (!$('search-menu').hidden) renderSearchMenu(); });
   $('search-wrap').addEventListener('mouseenter', showSearchMenu);
   $('search-wrap').addEventListener('mouseleave', () => hideSearchMenu());

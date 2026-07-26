@@ -22,6 +22,14 @@
   --scroll-thumb: #3f3e3b;
   --scroll-thumb-hover: #55534e;
   --shadow: rgba(0, 0, 0, 0.4);
+  /* Send / primary buttons are a solid slab that contrasts with the page rather
+     than the accent colour, so they read the same way in every theme. */
+  --btn-primary-bg: #f5f3ee;
+  --btn-primary-fg: #201f1d;
+  --btn-primary-hover: #ffffff;
+  --pill-bg: transparent;
+  --pill-border: #45443f;
+  --pill-active-bg: #3a3936;
   color-scheme: dark;
   --radius: 12px;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -48,28 +56,40 @@
   --scroll-thumb: #2a2926;
   --scroll-thumb-hover: #45433d;
   --shadow: rgba(0, 0, 0, 0.75);
+  --btn-primary-bg: #edeae3;
+  --btn-primary-fg: #0a0a09;
+  --btn-primary-hover: #ffffff;
+  --pill-bg: transparent;
+  --pill-border: #33322d;
+  --pill-active-bg: #232320;
   color-scheme: dark;
 }
 
-[data-theme="light"] {                 /* Light — warm paper, matching the website */
-  --bg: #faf9f5;
-  --bg-sidebar: #f0eee6;
+[data-theme="light"] {                 /* Light — soft neutral paper, near-black ink */
+  --bg: #efeeea;
+  --bg-sidebar: #eae9e4;
   --bg-raised: #ffffff;
-  --bg-hover: #eae7dd;
-  --border: #ddd9cd;
-  --border-strong: #b9b4a6;
-  --text: #2b2a26;
-  --text-muted: #5f5c54;
-  --text-faint: #6f6b61;
+  --bg-hover: #e3e2dc;
+  --border: #dedcd5;
+  --border-strong: #b6b3aa;
+  --text: #1c1b19;
+  --text-muted: #56544e;
+  --text-faint: #6b6962;
   --accent: #b8552f;
   --accent-strong: #9c4526;
   --danger: #c2453a;
   --ok: #4f7f3c;
   --warn: #9a6f14;
-  --code-bg: #f4f1e9;
-  --scroll-thumb: #cfcabb;
-  --scroll-thumb-hover: #b0aa99;
-  --shadow: rgba(43, 42, 38, 0.14);
+  --code-bg: #f3f2ee;
+  --scroll-thumb: #cbc9c1;
+  --scroll-thumb-hover: #adaba2;
+  --shadow: rgba(28, 27, 25, 0.1);
+  --btn-primary-bg: #1a1917;
+  --btn-primary-fg: #ffffff;
+  --btn-primary-hover: #000000;
+  --pill-bg: #ffffff;
+  --pill-border: #dedcd5;
+  --pill-active-bg: #e6e5df;
   color-scheme: light;
 }
 
@@ -92,6 +112,12 @@
   --scroll-thumb: #cbb994;
   --scroll-thumb-hover: #ac9670;
   --shadow: rgba(78, 60, 32, 0.16);
+  --btn-primary-bg: #3a3125;
+  --btn-primary-fg: #fdf6e6;
+  --btn-primary-hover: #2a2319;
+  --pill-bg: #fdf6e6;
+  --pill-border: #d8c8a4;
+  --pill-active-bg: #ebdfc4;
   color-scheme: light;
 }
 
@@ -366,12 +392,16 @@ input, textarea, select {
   padding-bottom: 8vh;
 }
 .greeting-mark { color: var(--accent); }
-.greeting-mark svg { width: 44px; height: 44px; }
+.greeting-mark svg { width: 34px; height: 34px; }
+/* Big, tightly-tracked sans — the greeting is the whole empty screen, so it
+   carries the weight rather than sharing it with decoration. */
 .greeting {
-  font-family: var(--serif);
-  font-weight: 400;
-  font-size: 32px;
+  font-family: var(--sans);
+  font-weight: 650;
+  font-size: 42px;
+  letter-spacing: -0.022em;
   color: var(--text);
+  text-align: center;
 }
 
 #messages {
@@ -496,9 +526,9 @@ input, textarea, select {
 #composer {
   background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 12px 14px 10px;
-  box-shadow: 0 4px 18px var(--shadow);
+  border-radius: 26px;
+  padding: 16px 16px 12px;
+  box-shadow: 0 2px 6px var(--shadow), 0 12px 28px var(--shadow);
   transition: border-color 0.15s;
 }
 #composer:focus-within { border-color: var(--border-strong); }
@@ -521,17 +551,58 @@ input, textarea, select {
   margin-top: 8px;
 }
 #composer-model {
-  background: transparent;
-  border: none;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 16px;
+  background: var(--pill-bg);
+  border: 1px solid var(--pill-border);
   color: var(--text-muted);
   font-size: 12.5px;
-  max-width: 260px;
+  max-width: 230px;
   cursor: pointer;
 }
-#composer-model:hover { color: var(--text); }
+#composer-model:hover { color: var(--text); background: var(--pill-active-bg); }
 #composer-model option { background: var(--bg-raised); }
-.composer-left { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.composer-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .composer-right { display: flex; align-items: center; gap: 10px; }
+
+/* Composer tools read as discrete pills sitting on the card: round for the
+   icon-only ones, capsule with a label for the modes you switch on and off. */
+.composer-left .icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--pill-border);
+  background: var(--pill-bg);
+  color: var(--text-muted);
+}
+.composer-left .icon-btn:hover { background: var(--pill-active-bg); color: var(--text); }
+.composer-left .icon-btn svg { width: 15px; height: 15px; }
+
+.pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  border: 1px solid var(--pill-border);
+  background: var(--pill-bg);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.13s ease, color 0.13s ease, border-color 0.13s ease;
+}
+.pill-btn:hover { background: var(--pill-active-bg); color: var(--text); }
+.pill-btn svg { width: 15px; height: 15px; flex: none; }
+/* an enabled mode is stated, not just implied by a slightly different grey */
+.pill-btn.on {
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+}
 
 #attach-strip {
   display: flex;
@@ -871,19 +942,19 @@ input, textarea, select {
 #gen-speed { font-size: 11.5px; color: var(--text-faint); }
 
 #btn-send {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: background 0.15s;
 }
-#btn-send:hover { background: var(--accent-strong); }
+#btn-send:hover { background: var(--btn-primary-hover); }
 #btn-send:disabled { background: var(--border); color: var(--text-faint); cursor: default; }
-#btn-send svg { width: 16px; height: 16px; }
+#btn-send svg { width: 17px; height: 17px; }
 
 .composer-hint {
   text-align: center;
