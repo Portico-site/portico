@@ -1230,8 +1230,22 @@ details.think .think-body {
   overflow-y: auto;
   transition: margin-right 0.18s ease;
 }
-#panel.closed { margin-right: -301px; }
-#panel h3 { font-family: var(--serif); font-weight: 500; font-size: 17px; }
+/* same reasoning as the artifact panel: stop painting once it has slid away */
+#panel.closed {
+  margin-right: -301px;
+  visibility: hidden;
+  transition: margin-right 0.2s ease, visibility 0s linear 0.2s;
+}
+#panel:not(.closed) { visibility: visible; transition: margin-right 0.2s ease, visibility 0s; }
+/* the heading shares the top-right corner with the OS window buttons, so keep it
+   clear of them the same way the artifact header does */
+#panel h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 17px;
+  padding-right: calc(var(--wco-w, 138px) - 6px);
+  min-height: 26px;
+}
 #panel textarea { padding: 9px 11px; resize: vertical; font-size: 13.5px; }
 #panel input[type="number"] { padding: 8px 11px; }
 #panel input[type="range"] { accent-color: var(--accent); padding: 0; border: none; background: transparent; }
@@ -1299,7 +1313,17 @@ details.think .think-body {
   flex-direction: column;
   transition: margin-right 0.2s ease;
 }
-#artifact-panel.closed { margin-right: -461px; }
+/* A closed panel is hidden by a negative margin, which slides it away but leaves it
+   painting. Its <iframe> then drew straight over the chat settings panel that had
+   moved into the same space — the settings looked blank because you were seeing an
+   empty iframe. Hiding it after the slide finishes stops it painting entirely;
+   the 0.2s delay lets the animation play out first. */
+#artifact-panel.closed {
+  margin-right: -461px;
+  visibility: hidden;
+  transition: margin-right 0.2s ease, visibility 0s linear 0.2s;
+}
+#artifact-panel:not(.closed) { visibility: visible; transition: margin-right 0.2s ease, visibility 0s; }
 /* The window's minimise/maximise/close buttons are drawn by Windows over the
    top-right of the frame — which is exactly where this header sits when the panel
    is open. Reserve that strip or the close button ends up underneath them and the
