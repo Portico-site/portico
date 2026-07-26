@@ -18,6 +18,13 @@ const ICONS = {
   globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
   play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="6 4 20 12 6 20 6 4"/></svg>',
   mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  // two overlapping bubbles, matching the reference sidebar
+  chats: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8.5 14.5H7l-3 2.5v-2.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/><path d="M20 20.5l-3-2.5h-6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2v2.5z"/></svg>',
+  // archive tray
+  projects: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="5" rx="1.5"/><path d="M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>',
+  dots: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>',
 };
 
 /* ---------- themes ---------- */
@@ -217,6 +224,7 @@ function renderProjectList() {
       S.activeProjectId = row.dataset.project || null;
       renderProjectList();
       renderChatList();
+      updateSidebarNav();
       if (S.view !== 'chat') showView('chat');
     });
   });
@@ -358,18 +366,24 @@ function renderChatList() {
     item.className = 'chat-item' + (S.chat && S.chat.id === c.id ? ' active' : '');
     item.innerHTML = `<div class="chat-name">${esc(c.title)}</div>` +
       `<div class="chat-actions">` +
-      `<button class="icon-btn a-rename" title="Rename">${ICONS.pencil}</button>` +
-      `<button class="icon-btn a-delete" title="Delete">${ICONS.trash}</button></div>`;
+      `<button class="icon-btn a-more" title="More">${ICONS.dots}</button></div>`;
     item.querySelector('.chat-name').addEventListener('click', () => openChat(c.id));
-    item.querySelector('.a-delete').addEventListener('click', async (e) => {
-      e.stopPropagation();
+
+    const doDelete = async () => {
       await api.deleteChat(c.id);
       S.chats = S.chats.filter((x) => x.id !== c.id);
       if (S.chat && S.chat.id === c.id) newChat();
       renderChatList();
-    });
-    item.querySelector('.a-rename').addEventListener('click', (e) => {
+    };
+    item.querySelector('.a-more').addEventListener('click', (e) => {
       e.stopPropagation();
+      openRowMenu(e.currentTarget, [
+        { label: 'Rename', run: () => startRename() },
+        { label: 'Delete', danger: true, run: doDelete },
+      ]);
+    });
+
+    const startRename = () => {
       const input = document.createElement('input');
       input.className = 'rename';
       input.value = c.title;
@@ -390,9 +404,40 @@ function renderChatList() {
         if (ev.key === 'Escape') { input.value = c.title; input.blur(); }
       });
       input.addEventListener('blur', commit);
-    });
+    };
     list.appendChild(item);
   }
+}
+
+// Small popup anchored to a row's "…" button. One at a time; any click, scroll or
+// Escape dismisses it.
+function openRowMenu(anchor, items) {
+  document.querySelectorAll('.row-menu').forEach((m) => m.remove());
+  const menu = document.createElement('div');
+  menu.className = 'row-menu';
+  for (const it of items) {
+    const b = document.createElement('button');
+    b.className = 'row-menu-item' + (it.danger ? ' danger' : '');
+    b.textContent = it.label;
+    b.addEventListener('click', (e) => { e.stopPropagation(); menu.remove(); it.run(); });
+    menu.appendChild(b);
+  }
+  document.body.appendChild(menu);
+  const r = anchor.getBoundingClientRect();
+  // flip above the button when there is no room below
+  const below = window.innerHeight - r.bottom > menu.offsetHeight + 8;
+  menu.style.left = Math.min(r.left, window.innerWidth - menu.offsetWidth - 8) + 'px';
+  menu.style.top = (below ? r.bottom + 4 : r.top - menu.offsetHeight - 4) + 'px';
+  // Force the reflow, then add the class synchronously. requestAnimationFrame does
+  // NOT fire while the window is occluded, which would leave the menu stuck at
+  // opacity 0 — the same trap the modals hit.
+  void menu.offsetWidth;
+  menu.classList.add('open');
+
+  const close = () => { menu.remove(); document.removeEventListener('click', close); window.removeEventListener('keydown', onKey, true); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  setTimeout(() => document.addEventListener('click', close), 0);
+  window.addEventListener('keydown', onKey, true);
 }
 
 /* ---------- chat ---------- */
@@ -2166,6 +2211,45 @@ function searchPlan(text, chat) {
   return plan;
 }
 
+/* ---------- sidebar navigation ---------- */
+
+// The search field is revealed by the magnifier rather than sitting open, and
+// Chats / Projects switch what the list below is filtered to.
+function wireSidebarNav() {
+  const box = $('sb-search-box') || document.querySelector('.sb-search');
+  const input = $('search');
+
+  $('btn-search-toggle').addEventListener('click', () => {
+    const showing = box.hidden;
+    box.hidden = !showing;
+    if (showing) input.focus();
+    else if (input.value) { input.value = ''; renderChatList(); } // clearing it must restore the list
+    $('btn-search-toggle').classList.toggle('active', showing);
+  });
+
+  $('nav-chats').addEventListener('click', () => {
+    S.activeProjectId = null;          // "Chats" means all of them, no project filter
+    renderProjectList();
+    renderChatList();
+    if (S.view !== 'chat') showView('chat');
+    updateSidebarNav();
+  });
+
+  $('nav-projects').addEventListener('click', () => {
+    const box2 = document.querySelector('.sb-projects');
+    box2.hidden = !box2.hidden;
+    updateSidebarNav();
+  });
+
+  updateSidebarNav();
+}
+
+function updateSidebarNav() {
+  const projOpen = !document.querySelector('.sb-projects').hidden;
+  $('nav-projects').classList.toggle('active', projOpen);
+  $('nav-chats').classList.toggle('active', !projOpen && !S.activeProjectId);
+}
+
 /* ---------- boot ---------- */
 
 async function init() {
@@ -2175,6 +2259,11 @@ async function init() {
   $('btn-settings').innerHTML = ICONS.gear;
   $('btn-panel').innerHTML = ICONS.sliders;
   $('btn-send').innerHTML = ICONS.up;
+  $('btn-search-toggle').innerHTML = ICONS.search;
+  $('btn-new-chat').querySelector('.sb-ico').innerHTML = ICONS.plus;
+  $('nav-chats').querySelector('.sb-ico').innerHTML = ICONS.chats;
+  $('nav-projects').querySelector('.sb-ico').innerHTML = ICONS.projects;
+  wireSidebarNav();
 
   S.settings = await api.getSettings();
   applyTheme(S.settings.theme || 'dark');   // the stored theme wins over the cached one
@@ -2185,6 +2274,9 @@ async function init() {
   S.assistants = await api.listAssistants();
   renderProjectList();
   renderAssistantPicker();
+  // one-shot entrance for the chat list; dropped so later re-renders don't replay it
+  $('chat-list').classList.add('intro');
+  setTimeout(() => $('chat-list').classList.remove('intro'), 700);
   await refreshModels();
   refreshRemoteStatus();
   updatePill();

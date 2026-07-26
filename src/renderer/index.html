@@ -11,21 +11,30 @@
 <body>
   <div id="root">
     <aside id="sidebar">
-      <div class="sb-brand">
-        <span class="brand-mark"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M14 8 H86 V38 H68 A18 18 0 0 0 32 38 H14 Z"/><rect x="14" y="42" width="26" height="6"/><rect x="18" y="48" width="18" height="26"/><rect x="14" y="74" width="26" height="16"/><rect x="60" y="42" width="26" height="6"/><rect x="64" y="48" width="18" height="26"/><rect x="60" y="74" width="26" height="16"/><rect x="6" y="92" width="88" height="4"/></svg></span>
-        <span class="brand-name">Portico</span>
+      <div class="sb-top">
         <button id="btn-collapse" class="icon-btn" title="Collapse sidebar"></button>
+        <button id="btn-search-toggle" class="icon-btn" title="Search chats"></button>
       </div>
 
-      <button id="btn-new-chat">
-        <span class="plus">+</span> New chat
+      <button id="btn-new-chat" class="sb-nav">
+        <span class="sb-ico solid"></span>
+        <span class="sb-label">New chat</span>
       </button>
 
-      <div class="sb-search">
+      <div class="sb-search" hidden>
         <input id="search" type="text" placeholder="Search chats…" spellcheck="false" />
       </div>
 
-      <div class="sb-projects">
+      <button id="nav-chats" class="sb-nav">
+        <span class="sb-ico"></span>
+        <span class="sb-label">Chats</span>
+      </button>
+      <button id="nav-projects" class="sb-nav">
+        <span class="sb-ico"></span>
+        <span class="sb-label">Projects</span>
+      </button>
+
+      <div class="sb-projects" hidden>
         <div class="sb-section-head">
           <span>Projects</span>
           <button id="btn-new-project" class="icon-btn" title="New project">+</button>
