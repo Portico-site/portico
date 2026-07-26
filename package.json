@@ -1,7 +1,7 @@
 {
   "name": "pristudio",
   "productName": "Portico",
-  "version": "0.19.4",
+  "version": "0.20.0",
   "description": "Chat with language models running 100% locally on your PC",
   "main": "src/main/main.js",
   "author": "jolop",
