@@ -965,6 +965,21 @@ input, textarea, select {
   padding: 1px 5px;
   border-radius: 4px;
 }
+.bench-results { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+.bench-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+.bench-row.best { color: var(--text); border: 1px solid var(--ok); }
+.bench-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bench-val { flex: none; font-variant-numeric: tabular-nums; }
+
 .net-warn {
   font-size: 11.5px;
   line-height: 1.5;

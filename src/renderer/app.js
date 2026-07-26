@@ -1170,10 +1170,18 @@ async function renderSettingsView() {
     </label>
     <label class="field"><span>GPU device</span>
       <select id="s-device">
-        <option value="auto">Auto (prefer fastest GPU)</option>
+        <option value="auto">Auto${s.measuredDevice ? ' (measured: ' + esc(s.measuredDevice) + ')' : ' (prefer fastest GPU)'}</option>
         ${S.devices.map((d) => `<option value="${esc(d.id)}" ${s.device === d.id ? 'selected' : ''}>${esc(d.id)} — ${esc(d.name)} (${d.totalMiB} MiB)</option>`).join('')}
       </select>
       <span class="hint">Detected: ${S.devices.map((d) => esc(d.name)).join(' · ') || 'none (CPU mode)'}</span>
+      <div class="field-row" style="margin-top:6px">
+        <button class="btn" id="s-bench">Test graphics cards</button>
+        <span class="hint" id="s-bench-status"></span>
+      </div>
+      <div id="s-bench-results" class="bench-results"></div>
+      <span class="hint">The fastest card is not always the biggest one. On laptops the
+        discrete GPU is sometimes powered down by the driver, which makes it far slower
+        than the built-in graphics — testing measures what is actually true on this machine.</span>
     </label>
     <label class="field"><span>Context size <em>memory used for conversation history</em></span>
       <select id="s-ctx">
@@ -1326,6 +1334,7 @@ async function renderSettingsView() {
   $('s-test').addEventListener('click', testEngines);
   $('s-open').addEventListener('click', () => api.openModelsFolder());
   wireSharedEngine();
+  wireDeviceBenchmark();
   $('s-save').addEventListener('click', async () => {
     S.settings = await api.saveSettings({
       modelsDir: $('s-dir').value.trim(),
@@ -1354,6 +1363,48 @@ async function renderSettingsView() {
     await renderEngineList(); // a new Brave key can unlock that engine
     updatePill();
     toast('Settings saved');
+  });
+}
+
+// Times each graphics device on a real generation, then remembers the winner.
+// Takes a couple of minutes because every device has to load the model.
+function wireDeviceBenchmark() {
+  const btn = $('s-bench');
+  const status = $('s-bench-status');
+  const box = $('s-bench-results');
+
+  const draw = (rows, best) => {
+    box.innerHTML = rows.map((r) => {
+      const win = best && r.id === best;
+      const val = r.tps > 0 ? r.tps.toFixed(1) + ' tok/s' : (r.error || 'not usable');
+      return `<div class="bench-row${win ? ' best' : ''}">
+        <span class="bench-name">${esc(r.name || r.id)}</span>
+        <span class="bench-val">${esc(val)}${win ? ' · fastest' : ''}</span>
+      </div>`;
+    }).join('');
+  };
+
+  // show whatever the last run found, so the numbers survive reopening Settings
+  if (S.settings.deviceBenchmark) draw(S.settings.deviceBenchmark, S.settings.measuredDevice);
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    box.innerHTML = '';
+    status.textContent = 'Testing… this stops the current model for a minute or two.';
+    const r = await api.benchmarkDevices();
+    btn.disabled = false;
+    if (r.error) { status.textContent = r.error; return; }
+    draw(r.devices, r.best);
+    S.settings = await api.getSettings();
+    const winner = r.devices.find((d) => d.id === r.best);
+    status.textContent = winner
+      ? `Using ${winner.name} from now on.`
+      : 'No device could run the model.';
+    renderSettingsView();   // refresh the "Auto (measured: …)" label
+  });
+
+  api.onDeviceBenchmarkProgress((p) => {
+    if (p.state === 'testing') status.textContent = `Testing ${p.name}…`;
   });
 }
 

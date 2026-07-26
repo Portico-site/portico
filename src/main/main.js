@@ -61,6 +61,12 @@ function defaultSettings() {
     // Real effect on the request, not a label — see applyEffort() in the renderer.
     effort: 'balanced',
 
+    // Fastest device as actually measured by Settings → Test graphics cards.
+    // Overrides the discrete-first guess, which can be badly wrong on laptops
+    // whose discrete GPU has been powered down by the driver.
+    measuredDevice: '',
+    deviceBenchmark: null,   // [{id, name, tps, error}] from the last test
+
     // ---------- shared engine over the network ----------
     // Host mode: this machine runs the model and lets others on the LAN use it.
     // Off by default — turning it on is what opens the engine beyond loopback.
@@ -92,6 +98,7 @@ function startOpts(s, modelPath, mmproj = null) {
     host: s.shareEngine ? '0.0.0.0' : '127.0.0.1',
     apiKey: s.shareEngine ? (s.shareKey || '') : '',
     parallel: s.shareEngine ? (s.parallelSlots || 1) : 1,
+    measuredDevice: s.measuredDevice || null,
   };
 }
 
@@ -539,6 +546,35 @@ function registerIpc() {
 
   ipcMain.handle('server-status', () => server.status());
   ipcMain.handle('list-devices', () => server.listDevices());
+
+  // Measure each graphics device instead of assuming the discrete one is fastest.
+  // The live engine is stopped first: two engines on one GPU would each report
+  // times distorted by the other.
+  ipcMain.handle('benchmark-devices', async () => {
+    const s = store.getSettings();
+    const model = server.status().modelPath || s.lastModelPath
+      || (scanModels(s.modelsDir)[0] || {}).path;
+    if (!model) return { error: 'Download a model first — the test needs one to run.' };
+    const wasLoaded = server.status().modelPath;
+    await server.stop();
+    try {
+      const r = await server.benchmarkDevices({
+        modelPath: model,
+        ctx: 2048,
+        onProgress: (p) => send('device-benchmark-progress', p),
+      });
+      if (r.best) store.saveSettings({ measuredDevice: r.best, deviceBenchmark: r.devices });
+      return r;
+    } catch (e) {
+      return { error: e.message };
+    } finally {
+      if (wasLoaded) {
+        const s2 = store.getSettings();
+        const found = scanModels(s2.modelsDir).find((m) => m.path === wasLoaded);
+        server.start(startOpts(s2, wasLoaded, found && found.mmproj ? found.mmproj : null));
+      }
+    }
+  });
   ipcMain.handle('load-model', async (e, modelPath) => {
     const s = store.getSettings();
     store.saveSettings({ lastModelPath: modelPath });

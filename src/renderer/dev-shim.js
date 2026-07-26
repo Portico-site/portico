@@ -29,6 +29,8 @@
     searchAlwaysAllSources: false,
     searchMode: 'auto',
     effort: 'balanced',
+    measuredDevice: '',
+    deviceBenchmark: null,
     shareEngine: false,
     shareKey: '',
     parallelSlots: 1,
@@ -154,6 +156,14 @@
       return status;
     },
     onServerStatus: (cb) => { serverCb = cb; },
+    benchmarkDevices: async () => ({
+      devices: [
+        { id: 'Vulkan0', name: 'NVIDIA GeForce RTX 3050 Ti Laptop GPU', tps: 3.4 },
+        { id: 'Vulkan1', name: 'AMD Radeon(TM) Graphics', tps: 15.1 },
+      ],
+      best: 'Vulkan1',
+    }),
+    onDeviceBenchmarkProgress: () => {},
 
     // The real app streams chat from the main process; in the browser preview there
     // is no main process, so fetch directly from the manually started llama-server.
