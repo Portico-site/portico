@@ -66,7 +66,12 @@ class ServerManager extends EventEmitter {
     return devices.slice().sort((a, b) => score(b) - score(a))[0].id;
   }
 
-  async start({ modelPath, ctx = 8192, ngl = 99, device = 'auto', mmproj = null }) {
+  // host: '127.0.0.1' keeps the engine private to this machine (the default).
+  // '0.0.0.0' exposes it to the local network — only ever set alongside an apiKey.
+  // parallel: how many chats can be served at once. Each slot carves its own slice
+  // out of the KV cache, so raising it costs VRAM; 1 is right for a personal machine.
+  async start({ modelPath, ctx = 8192, ngl = 99, device = 'auto', mmproj = null,
+                host = '127.0.0.1', apiKey = '', parallel = 1 }) {
     const token = ++this.startSeq;
     await this.stop();
     if (token !== this.startSeq) return this.status(); // a newer start superseded us
@@ -81,14 +86,27 @@ class ServerManager extends EventEmitter {
       dev = this.pickDevice(devices);
     }
 
+    // Refuse to listen beyond loopback without a key — an open engine on a shared
+    // network is a machine anyone can run arbitrary prompts on.
+    const exposed = host && host !== '127.0.0.1' && host !== 'localhost';
+    if (exposed && !apiKey) {
+      this.setState('error', 'Refusing to share the engine without an access key.');
+      return this.status();
+    }
+
+    const slots = Math.max(1, Math.min(16, Number(parallel) || 1));
+    // llama.cpp splits -c across slots, so each chat would silently get ctx/slots.
+    // Scale it up so every connected person gets the context size that was configured.
+    const totalCtx = ctx * slots;
     const args = [
       '--model', modelPath,
       '--port', String(this.port),
-      '--host', '127.0.0.1',
-      '-c', String(ctx),
-      // single chat slot: 4x less KV-cache VRAM than the default 4 slots
-      '--parallel', '1',
+      '--host', String(host),
+      '-c', String(totalCtx),
+      // one slot per concurrent chat; 1 uses 4x less KV-cache VRAM than the default 4
+      '--parallel', String(slots),
     ];
+    if (apiKey) args.push('--api-key', String(apiKey));
     // ngl >= 99 means "automatic": omit -ngl so llama.cpp fits as many layers as the
     // GPU's free VRAM allows. Forcing 99 crashes models whose weights+KV exceed VRAM.
     if (Number.isFinite(Number(ngl)) && Number(ngl) < 99) args.push('-ngl', String(ngl));
@@ -117,7 +135,7 @@ class ServerManager extends EventEmitter {
     });
 
     const myProc = this.proc;
-    const ok = await this.waitHealthy(240000, myProc);
+    const ok = await this.waitHealthy(240000, myProc, apiKey);
     if (token !== this.startSeq) return this.status(); // superseded while loading
     if (ok) {
       this.setState('ready');
@@ -128,13 +146,16 @@ class ServerManager extends EventEmitter {
     return this.status();
   }
 
-  waitHealthy(timeoutMs, proc) {
+  waitHealthy(timeoutMs, proc, apiKey = '') {
     const deadline = Date.now() + timeoutMs;
+    // Always polled over loopback: even when the engine is bound to 0.0.0.0 for
+    // sharing, it is still our own child process on this machine.
+    const headers = apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
     return new Promise((resolve) => {
       const tick = () => {
         if (!this.proc || (proc && this.proc !== proc)) return resolve(false);
         if (Date.now() > deadline) return resolve(false);
-        const req = http.get({ host: '127.0.0.1', port: this.port, path: '/health', timeout: 2000 }, (res) => {
+        const req = http.get({ host: '127.0.0.1', port: this.port, path: '/health', headers, timeout: 2000 }, (res) => {
           res.resume();
           if (res.statusCode === 200) resolve(true);
           else setTimeout(tick, 700);

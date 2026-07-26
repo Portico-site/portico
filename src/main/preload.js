@@ -66,6 +66,18 @@ contextBridge.exposeInMainWorld('pristudio', {
   cancelDownload: (id) => ipcRenderer.invoke('cancel-download', id),
   onDownloadProgress: (cb) => ipcRenderer.on('download-progress', (e, p) => cb(p)),
 
+  // chat streaming runs in main so the access key never reaches the page
+  chatStart: (payload) => ipcRenderer.invoke('chat-start', payload),
+  chatAbort: () => ipcRenderer.invoke('chat-abort'),
+  onChatChunk: (cb) => ipcRenderer.on('chat-chunk', (e, d) => cb(d)),
+  onChatDone: (cb) => ipcRenderer.on('chat-done', () => cb()),
+  onChatError: (cb) => ipcRenderer.on('chat-error', (e, d) => cb(d)),
+
+  networkInfo: () => ipcRenderer.invoke('network-info'),
+  generateShareKey: () => ipcRenderer.invoke('generate-share-key'),
+  testRemote: (opts) => ipcRenderer.invoke('test-remote', opts),
+  applySharing: () => ipcRenderer.invoke('apply-sharing'),
+
   serverStatus: () => ipcRenderer.invoke('server-status'),
   listDevices: () => ipcRenderer.invoke('list-devices'),
   loadModel: (p) => ipcRenderer.invoke('load-model', p),

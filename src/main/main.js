@@ -11,6 +11,7 @@ const pyrun = require('./pyrun');
 const voice = require('./voice');
 const logger = require('./logger');
 const updater = require('./updater');
+const engineClient = require('./engine-client');
 const { devEngineDir } = require('./platform');
 const pkg = require('../../package.json');
 
@@ -55,11 +56,39 @@ function defaultSettings() {
     imageSize: 0,          // 0 = auto
     imageQuant: 'q8_0',    // fp16 weights overflow a 4 GB card; q8_0 fits in ~1.7 GB
     imageDevice: 'vulkan0',
+
+    // ---------- shared engine over the network ----------
+    // Host mode: this machine runs the model and lets others on the LAN use it.
+    // Off by default — turning it on is what opens the engine beyond loopback.
+    shareEngine: false,
+    shareKey: '',          // required when sharing; generated on first enable
+    parallelSlots: 1,      // concurrent chats the host serves; each costs KV-cache VRAM
+
+    // Client mode: use another machine's engine instead of running one here.
+    remoteMode: false,
+    remoteUrl: '',         // e.g. http://192.168.1.40:8033
+    remoteKey: '',
   };
 }
 
 function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+}
+
+// Engine launch options derived from settings. Sharing is what decides whether the
+// engine listens beyond loopback, so it is resolved in one place rather than at
+// each call site — a start that forgot it would quietly un-share the machine.
+function startOpts(s, modelPath, mmproj = null) {
+  return {
+    modelPath,
+    ctx: s.contextSize,
+    ngl: s.gpuLayers,
+    device: s.device,
+    mmproj,
+    host: s.shareEngine ? '0.0.0.0' : '127.0.0.1',
+    apiKey: s.shareEngine ? (s.shareKey || '') : '',
+    parallel: s.shareEngine ? (s.parallelSlots || 1) : 1,
+  };
 }
 
 // Frame colours per theme, mirroring the CSS. Used for the very first paint so the
@@ -341,7 +370,7 @@ function registerIpc() {
     } finally {
       if (wasLoaded) {
         send('image-stage', { stage: 'reloading-chat-model' });
-        server.start({ modelPath: wasLoaded, ctx: s.contextSize, ngl: s.gpuLayers, device: s.device });
+        server.start(startOpts(s, wasLoaded));
       }
     }
   });
@@ -510,15 +539,61 @@ function registerIpc() {
     const s = store.getSettings();
     store.saveSettings({ lastModelPath: modelPath });
     const found = scanModels(s.modelsDir).find((m) => m.path === modelPath);
-    return server.start({
-      modelPath,
-      ctx: s.contextSize,
-      ngl: s.gpuLayers,
-      device: s.device,
-      mmproj: found && found.mmproj ? found.mmproj : null,
-    });
+    return server.start(startOpts(s, modelPath, found && found.mmproj ? found.mmproj : null));
   });
   ipcMain.handle('unload-model', () => server.stop().then(() => server.status()));
+
+  // ---------- chat streaming ----------
+  // The request is made here, not in the renderer, so the access key stays out of
+  // the page and the CSP can stay pinned to loopback.
+  let chatStream = null;
+  ipcMain.handle('chat-start', (e, payload) => {
+    if (chatStream) { try { chatStream.abort(); } catch {} }
+    const s = store.getSettings();
+    chatStream = engineClient.streamChat({
+      settings: s,
+      payload,
+      onChunk: (data) => send('chat-chunk', data),
+      onDone: () => { chatStream = null; send('chat-done', {}); },
+      onError: (err) => { chatStream = null; send('chat-error', { message: err.message }); },
+    });
+    return { ok: true };
+  });
+  ipcMain.handle('chat-abort', () => {
+    if (chatStream) { try { chatStream.abort(); } catch {} chatStream = null; }
+    return { ok: true };
+  });
+
+  // ---------- shared engine ----------
+  ipcMain.handle('network-info', () => {
+    const s = store.getSettings();
+    return {
+      shareEngine: !!s.shareEngine,
+      shareKey: s.shareKey || '',
+      parallelSlots: s.parallelSlots || 1,
+      remoteMode: !!s.remoteMode,
+      remoteUrl: s.remoteUrl || '',
+      remoteKey: s.remoteKey || '',
+      port: s.port,
+      addresses: engineClient.localAddresses(),
+    };
+  });
+  ipcMain.handle('generate-share-key', () => {
+    // 24 hex chars: long enough that guessing is hopeless, short enough to read aloud
+    const key = require('crypto').randomBytes(12).toString('hex');
+    store.saveSettings({ shareKey: key });
+    return key;
+  });
+  ipcMain.handle('test-remote', (e, { url, key }) => engineClient.probe({ url, key }));
+  // Turning sharing on or off changes the bind address, which only takes effect when
+  // the engine (re)starts — so restart it if a model is currently loaded.
+  ipcMain.handle('apply-sharing', async () => {
+    const s = store.getSettings();
+    const loaded = server.status().modelPath;
+    if (!loaded) return server.status();
+    const found = scanModels(s.modelsDir).find((m) => m.path === loaded);
+    return server.start(startOpts(s, loaded, found && found.mmproj ? found.mmproj : null));
+  });
 
   // ---------- projects ----------
   ipcMain.handle('list-projects', () => store.listProjects());

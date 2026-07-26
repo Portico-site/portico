@@ -510,6 +510,16 @@ function updatePill() {
   const dot = $('pill-dot');
   const text = $('pill-text');
   const st = S.server;
+
+  // In client mode the local engine is deliberately idle — reporting "no model
+  // loaded" would look broken, so show where the model actually is instead.
+  if (S.settings && S.settings.remoteMode) {
+    dot.className = 'dot ready';
+    const host = (S.settings.remoteUrl || '').replace(/^https?:\/\//, '') || 'another computer';
+    text.textContent = S.remoteModel ? `${S.remoteModel} · ${host}` : host;
+    return;
+  }
+
   dot.className = 'dot ' + st.state;
   if (st.state === 'ready') text.textContent = baseName(st.modelPath);
   else if (st.state === 'starting') text.textContent = 'Loading ' + baseName(st.modelPath) + '…';
@@ -525,6 +535,18 @@ function showError(msg) {
   $('error-banner').hidden = false;
 }
 
+// In client mode, ask the host what it is serving so the pill can name the model
+// and an unreachable host is reported before the user types a whole message.
+async function refreshRemoteStatus() {
+  const s = S.settings;
+  if (!s || !s.remoteMode || !s.remoteUrl) { S.remoteModel = null; return; }
+  const r = await api.testRemote({ url: s.remoteUrl, key: s.remoteKey });
+  S.remoteModel = r.ok ? r.model : null;
+  if (!r.ok) showError('Cannot reach the host machine: ' + r.error);
+  else $('error-banner').hidden = true;
+  updatePill();
+}
+
 api.onServerStatus((st) => {
   S.server = st;
   updatePill();
@@ -532,6 +554,13 @@ api.onServerStatus((st) => {
   if (st.state === 'ready') $('error-banner').hidden = true;
   if (S.view === 'models') renderModelsView();
 });
+
+// The reply is streamed by the main process (so the engine's access key never
+// reaches this page) and arrives as events. Only one generation runs at a time,
+// so a single set of hooks is enough — same shape as S.imageHooks.
+api.onChatChunk((data) => { if (S.chatHooks) S.chatHooks.chunk(data); });
+api.onChatDone(() => { if (S.chatHooks) S.chatHooks.done(); });
+api.onChatError((e) => { if (S.chatHooks) S.chatHooks.error(e); });
 
 function waitForReady(timeoutMs = 120000) {
   return new Promise((resolve) => {
@@ -544,6 +573,9 @@ function waitForReady(timeoutMs = 120000) {
 }
 
 async function ensureModelLoaded() {
+  // In client mode the model lives on the host machine — there is nothing to load
+  // here, and the host is responsible for having one ready.
+  if (S.settings && S.settings.remoteMode) return true;
   if (S.server.state === 'ready') return true;
   if (S.server.state === 'starting') return waitForReady();
   const sel = $('composer-model').value;
@@ -714,8 +746,6 @@ async function streamAssistantReply() {
   const apiMessages = built.messages;
   updateContextMeter(built);
 
-  const ctrl = new AbortController();
-  S.abort = ctrl;
   let t0 = 0; // set on first token so speed reflects generation only
   let tokens = 0;
   let renderQueued = false;
@@ -729,35 +759,22 @@ async function streamAssistantReply() {
     });
   };
 
-  try {
-    const res = await fetch(`http://127.0.0.1:${s.port}/v1/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: ctrl.signal,
-      body: JSON.stringify({
-        messages: apiMessages,
-        stream: true,
-        temperature: s.temperature,
-        top_p: s.topP,
-        max_tokens: s.maxTokens > 0 ? s.maxTokens : undefined,
-      }),
-    });
-    if (!res.ok) throw new Error('Engine returned HTTP ' + res.status);
+  await new Promise((resolve) => {
+    let settled = false;
+    // stopping is a normal outcome, not a failure — the partial reply is kept
+    const finish = (err) => {
+      if (settled) return;
+      settled = true;
+      S.chatHooks = null;
+      if (err) {
+        asstMsg.content += (asstMsg.content ? '\n\n' : '') + '*[Error: ' + err.message + ']*';
+        toast('Generation failed: ' + err.message);
+      }
+      resolve();
+    };
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '';
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split('\n');
-      buf = lines.pop();
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith('data:')) continue;
-        const payload = trimmed.slice(5).trim();
-        if (payload === '[DONE]') continue;
+    S.chatHooks = {
+      chunk: (payload) => {
         try {
           const j = JSON.parse(payload);
           const delta = j.choices && j.choices[0] && j.choices[0].delta;
@@ -768,14 +785,22 @@ async function streamAssistantReply() {
             queueRender();
           }
         } catch {}
-      }
-    }
-  } catch (err) {
-    if (err.name !== 'AbortError') {
-      asstMsg.content += (asstMsg.content ? '\n\n' : '') + '*[Error: ' + err.message + ']*';
-      toast('Generation failed: ' + err.message);
-    }
-  }
+      },
+      done: () => finish(null),
+      error: (e) => finish(new Error((e && e.message) || 'Engine error')),
+    };
+
+    // keeps the existing stop button working: same .abort() shape as AbortController
+    S.abort = { abort: () => { api.chatAbort(); finish(null); } };
+
+    api.chatStart({
+      messages: apiMessages,
+      stream: true,
+      temperature: s.temperature,
+      top_p: s.topP,
+      max_tokens: s.maxTokens > 0 ? s.maxTokens : undefined,
+    }).catch((e) => finish(new Error(e.message)));
+  });
 
   S.abort = null;
   setGenerating(false);
@@ -1098,6 +1123,62 @@ async function renderSettingsView() {
       <input id="s-port" type="number" min="1024" max="65535" value="${s.port}" />
       <span class="hint">Applies after restarting the app.</span>
     </label>
+
+    <div class="settings-sep">Shared engine</div>
+    <div class="field">
+      <span>Run the model somewhere else, or let others use this machine.</span>
+      <span class="hint">One computer with a good graphics card can serve everyone else on the
+        same network. Chats, files and projects always stay on each person's own machine —
+        only the model runs on the host.</span>
+    </div>
+
+    <label class="check-row">
+      <input id="s-remote" type="checkbox" ${s.remoteMode ? 'checked' : ''} />
+      <span>Use another computer's engine <em>(this machine stops running its own model)</em></span>
+    </label>
+    <div id="s-remote-box" class="net-box" ${s.remoteMode ? '' : 'hidden'}>
+      <label class="field"><span>Host address</span>
+        <input id="s-remoteurl" type="text" placeholder="192.168.1.40:8033"
+               value="${esc(s.remoteUrl || '')}" spellcheck="false" />
+      </label>
+      <label class="field"><span>Access key</span>
+        <input id="s-remotekey" type="text" placeholder="paste the key from the host"
+               value="${esc(s.remoteKey || '')}" spellcheck="false" />
+      </label>
+      <div class="field-row">
+        <button class="btn" id="s-remotetest">Test connection</button>
+        <span class="hint" id="s-remotestatus"></span>
+      </div>
+    </div>
+
+    <label class="check-row">
+      <input id="s-share" type="checkbox" ${s.shareEngine ? 'checked' : ''} />
+      <span>Share this computer's engine <em>(let others on the network use it)</em></span>
+    </label>
+    <div id="s-share-box" class="net-box" ${s.shareEngine ? '' : 'hidden'}>
+      <label class="field"><span>Access key <em>anyone with this can use the engine</em></span>
+        <div class="field-row">
+          <input id="s-sharekey" type="text" value="${esc(s.shareKey || '')}" spellcheck="false" readonly />
+          <button class="btn" id="s-newkey">New key</button>
+        </div>
+      </label>
+      <label class="field"><span>People at once</span>
+        <select id="s-slots">
+          ${[1, 2, 4, 6, 8].map((v) => `<option value="${v}" ${(s.parallelSlots || 1) === v ? 'selected' : ''}>${v}${v === 1 ? ' (just you)' : ''}</option>`).join('')}
+        </select>
+        <span class="hint">Each extra person needs their own slice of video memory. If the model
+          stops loading after raising this, lower it or reduce the context size.</span>
+      </label>
+      <div class="field">
+        <span>This computer's address</span>
+        <div id="s-addresses" class="hint"></div>
+      </div>
+      <div class="net-warn">
+        Traffic is unencrypted, so only share on a network you trust — an office or home LAN.
+        Do not forward this port to the internet; use a VPN if people need access from outside.
+      </div>
+    </div>
+
     <div class="settings-sep">Appearance</div>
     <div class="field">
       <span>Theme</span>
@@ -1178,6 +1259,7 @@ async function renderSettingsView() {
   wireAboutSection();
   $('s-test').addEventListener('click', testEngines);
   $('s-open').addEventListener('click', () => api.openModelsFolder());
+  wireSharedEngine();
   $('s-save').addEventListener('click', async () => {
     S.settings = await api.saveSettings({
       modelsDir: $('s-dir').value.trim(),
@@ -1193,10 +1275,78 @@ async function renderSettingsView() {
       imageSize: parseInt($('s-imgsize').value, 10),
       imageSteps: parseInt($('s-imgsteps').value, 10),
       imageQuant: $('s-imgquant').value,
+      remoteMode: $('s-remote').checked,
+      remoteUrl: $('s-remoteurl').value.trim(),
+      remoteKey: $('s-remotekey').value.trim(),
+      shareEngine: $('s-share').checked,
+      parallelSlots: parseInt($('s-slots').value, 10) || 1,
     });
+    // sharing changes the engine's bind address, which only takes effect on restart
+    await api.applySharing();
+    await refreshRemoteStatus();
     await refreshModels();
     await renderEngineList(); // a new Brave key can unlock that engine
+    updatePill();
     toast('Settings saved');
+  });
+}
+
+// Host and client mode controls. The two are mutually exclusive: a machine either
+// runs the model for others or borrows someone else's, never both.
+function wireSharedEngine() {
+  const remote = $('s-remote');
+  const share = $('s-share');
+
+  const sync = () => {
+    $('s-remote-box').hidden = !remote.checked;
+    $('s-share-box').hidden = !share.checked;
+  };
+
+  remote.addEventListener('change', () => {
+    if (remote.checked && share.checked) {
+      share.checked = false;
+      toast('Sharing turned off — a machine cannot host and borrow at the same time');
+    }
+    sync();
+  });
+
+  share.addEventListener('change', async () => {
+    if (share.checked && remote.checked) {
+      remote.checked = false;
+      toast('Switched off using a remote engine');
+    }
+    // sharing without a key would expose the engine to anyone on the network
+    if (share.checked && !$('s-sharekey').value.trim()) {
+      $('s-sharekey').value = await api.generateShareKey();
+    }
+    sync();
+  });
+
+  $('s-newkey').addEventListener('click', async () => {
+    $('s-sharekey').value = await api.generateShareKey();
+    toast('New key — everyone connecting will need to update it');
+  });
+
+  $('s-remotetest').addEventListener('click', async () => {
+    const st = $('s-remotestatus');
+    st.textContent = 'Checking…';
+    const r = await api.testRemote({
+      url: $('s-remoteurl').value.trim(),
+      key: $('s-remotekey').value.trim(),
+    });
+    st.textContent = r.ok
+      ? `Connected${r.model ? ' — host is running ' + r.model : ''}`
+      : r.error;
+    st.style.color = r.ok ? 'var(--ok, #6a9955)' : 'var(--danger, #d08770)';
+  });
+
+  // show the addresses other machines would use to reach this one
+  api.networkInfo().then((info) => {
+    const box = $('s-addresses');
+    if (!box) return;
+    box.innerHTML = info.addresses.length
+      ? info.addresses.map((a) => `<code>${esc(a.address)}:${info.port}</code> <em>${esc(a.iface)}</em>`).join('<br>')
+      : 'No network connection found.';
   });
 }
 
@@ -2036,6 +2186,7 @@ async function init() {
   renderProjectList();
   renderAssistantPicker();
   await refreshModels();
+  refreshRemoteStatus();
   updatePill();
   renderChatList();
   initPanel();

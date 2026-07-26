@@ -28,9 +28,17 @@
     searchEngines: {},
     searchAlwaysAllSources: false,
     searchMode: 'auto',
+    shareEngine: false,
+    shareKey: '',
+    parallelSlots: 1,
+    remoteMode: false,
+    remoteUrl: '',
+    remoteKey: '',
   };
   const chats = {};
   let serverCb = null;
+  const chatCbs = {};
+  let chatCtrl = null;
   let status = { state: 'stopped', modelPath: null, port: 8033 };
 
   const model = {
@@ -145,6 +153,63 @@
       return status;
     },
     onServerStatus: (cb) => { serverCb = cb; },
+
+    // The real app streams chat from the main process; in the browser preview there
+    // is no main process, so fetch directly from the manually started llama-server.
+    chatStart: async (payload) => {
+      const s = settings.remoteMode && settings.remoteUrl
+        ? settings.remoteUrl.replace(/\/+$/, '')
+        : `http://127.0.0.1:${settings.port}`;
+      const base = /^https?:\/\//.test(s) ? s : 'http://' + s;
+      const headers = { 'Content-Type': 'application/json' };
+      const key = settings.remoteMode ? settings.remoteKey : settings.shareKey;
+      if (key) headers.Authorization = 'Bearer ' + key;
+      chatCtrl = new AbortController();
+      try {
+        const res = await fetch(base + '/v1/chat/completions',
+          { method: 'POST', headers, body: JSON.stringify(payload), signal: chatCtrl.signal });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop();
+          for (const line of lines) {
+            const t = line.trim();
+            if (!t.startsWith('data:')) continue;
+            const p = t.slice(5).trim();
+            if (p !== '[DONE]') chatCbs.chunk && chatCbs.chunk(p);
+          }
+        }
+        chatCbs.done && chatCbs.done();
+      } catch (e) {
+        if (e.name !== 'AbortError') chatCbs.error && chatCbs.error({ message: e.message });
+      }
+      return { ok: true };
+    },
+    chatAbort: async () => { if (chatCtrl) { chatCtrl.abort(); chatCtrl = null; } },
+    onChatChunk: (cb) => { chatCbs.chunk = cb; },
+    onChatDone: (cb) => { chatCbs.done = cb; },
+    onChatError: (cb) => { chatCbs.error = cb; },
+
+    networkInfo: async () => ({
+      shareEngine: settings.shareEngine, shareKey: settings.shareKey,
+      parallelSlots: settings.parallelSlots, remoteMode: settings.remoteMode,
+      remoteUrl: settings.remoteUrl, remoteKey: settings.remoteKey, port: settings.port,
+      addresses: [{ iface: 'Wi-Fi (mock)', address: '192.168.1.40' }],
+    }),
+    generateShareKey: async () => {
+      settings.shareKey = Array.from({ length: 24 }, () => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('');
+      return settings.shareKey;
+    },
+    testRemote: async ({ url }) => (url
+      ? { ok: true, model: 'mock-model.gguf', base: url }
+      : { ok: false, error: 'Enter an address first.' }),
+    applySharing: async () => status,
     listChats: async () => Object.values(chats).map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt, createdAt: c.createdAt })),
     getChat: async (id) => chats[id] || null,
     saveChat: async (c) => { chats[c.id] = JSON.parse(JSON.stringify(c)); },
