@@ -89,14 +89,25 @@
                   <button id="btn-search" class="pill-btn" title="Web search: off"></button>
                   <div id="search-menu" class="search-menu" hidden></div>
                 </span>
-                <select id="composer-model" title="Model"></select>
               </div>
               <div class="composer-right">
-                <span id="ctx-meter" class="muted" hidden></span>
-                <span id="gen-speed" class="muted"></span>
                 <button id="btn-send" title="Send"></button>
               </div>
             </div>
+          </div>
+
+          <div id="status-strip">
+            <button id="st-model" class="st-seg" title="Model"><span class="st-val">No model</span></button>
+            <span class="st-sep"></span>
+            <button id="st-effort" class="st-seg" title="How hard the model works before answering"><span class="st-val">Balanced</span></button>
+            <span class="st-sep"></span>
+            <button id="st-tokens" class="st-seg" title="Context window usage">
+              <span id="st-ring" class="st-ring" style="--pct:0"></span>
+              <span class="st-val" id="st-tokens-val">0%</span>
+            </button>
+            <span id="gen-speed" class="muted"></span>
+            <select id="composer-model" title="Model" hidden></select>
+            <span id="ctx-meter" class="muted" hidden></span>
           </div>
           <div class="composer-hint" id="composer-hint">Runs 100% locally · nothing leaves your PC</div>
         </div>

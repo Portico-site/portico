@@ -411,7 +411,7 @@ function renderChatList() {
 
 // Small popup anchored to a row's "…" button. One at a time; any click, scroll or
 // Escape dismisses it.
-function openRowMenu(anchor, items) {
+function openRowMenu(anchor, items, place) {
   document.querySelectorAll('.row-menu').forEach((m) => m.remove());
   const menu = document.createElement('div');
   menu.className = 'row-menu';
@@ -424,8 +424,8 @@ function openRowMenu(anchor, items) {
   }
   document.body.appendChild(menu);
   const r = anchor.getBoundingClientRect();
-  // flip above the button when there is no room below
-  const below = window.innerHeight - r.bottom > menu.offsetHeight + 8;
+  // flip above the button when asked to, or when there is no room below
+  const below = place !== 'up' && window.innerHeight - r.bottom > menu.offsetHeight + 8;
   menu.style.left = Math.min(r.left, window.innerWidth - menu.offsetWidth - 8) + 'px';
   menu.style.top = (below ? r.bottom + 4 : r.top - menu.offsetHeight - 4) + 'px';
   // Force the reflow, then add the class synchronously. requestAnimationFrame does
@@ -562,6 +562,7 @@ function updatePill() {
     dot.className = 'dot ready';
     const host = (S.settings.remoteUrl || '').replace(/^https?:\/\//, '') || 'another computer';
     text.textContent = S.remoteModel ? `${S.remoteModel} · ${host}` : host;
+    renderStatusStrip();
     return;
   }
 
@@ -573,6 +574,7 @@ function updatePill() {
 
   const sel = $('composer-model');
   if (st.state === 'ready' && st.modelPath && sel.value !== st.modelPath) sel.value = st.modelPath;
+  renderStatusStrip();
 }
 
 function showError(msg) {
@@ -843,7 +845,7 @@ async function streamAssistantReply() {
       stream: true,
       temperature: s.temperature,
       top_p: s.topP,
-      max_tokens: s.maxTokens > 0 ? s.maxTokens : undefined,
+      max_tokens: effortMaxTokens(),
     }).catch((e) => finish(new Error(e.message)));
   });
 
@@ -2061,7 +2063,9 @@ function projectContext(budgetChars) {
 function buildApiMessages(history) {
   const s = S.settings;
   const ctx = s.contextSize || 4096;
-  const reply = Math.min(s.maxTokens || 2048, Math.floor(ctx / 2));
+  // reserve room for the reply at the CURRENT effort — Deep needs more, and the
+  // history budget has to shrink to match or the reply gets truncated
+  const reply = effortMaxTokens();
   const budgetChars = Math.max(1500, Math.floor((ctx - reply - 300) * CHARS_PER_TOKEN));
 
   const out = [];
@@ -2072,7 +2076,8 @@ function buildApiMessages(history) {
   // are part of the budget, or the history loop would overfill the context window.
   const sys = (s.systemPrompt || '').trim();
   const extra = lastMsg && needsAppFacts(lastMsg.content) ? APP_FACTS : '';
-  const systemText = [projectContext(budgetChars), sys, extra].filter(Boolean).join('\n\n');
+  const effortSys = currentEffort().system;
+  const systemText = [projectContext(budgetChars), sys, effortSys, extra].filter(Boolean).join('\n\n');
   let used = systemText.length;
   const lastContent = lastMsg ? apiContent(lastMsg, budgetChars) : '';
   used += lastContent.length;
@@ -2104,16 +2109,194 @@ function buildApiMessages(history) {
   return { messages: out, used, budgetChars, trimmed };
 }
 
+/* ---------- effort ---------- */
+
+// Effort has to change the request or it is just a label. Quick asks for brevity
+// and caps the reply; Deep asks for reasoning first and allows room for it.
+// Models that already think natively (R1, Qwen3) need no instruction — the tags
+// they emit are rendered as a collapsible block either way.
+const EFFORT = {
+  quick: {
+    label: 'Quick',
+    hint: 'Short, direct answers. Fastest.',
+    system: 'Answer directly and concisely. Do not show your working unless asked.',
+    tokenScale: 0.5,
+  },
+  balanced: {
+    label: 'Balanced',
+    hint: 'The normal setting.',
+    system: '',
+    tokenScale: 1,
+  },
+  deep: {
+    label: 'Deep',
+    hint: 'Reasons step by step first. Slower, uses more of the context window.',
+    system: 'Think through the problem step by step before giving your final answer. '
+      + 'Work carefully, and state your reasoning before the conclusion.',
+    tokenScale: 2,
+  },
+};
+
+function currentEffort() {
+  return EFFORT[(S.settings && S.settings.effort) || 'balanced'] || EFFORT.balanced;
+}
+
+// Max reply length for this request, after effort scaling. Kept below half the
+// context window so the reply can never crowd out the conversation itself.
+function effortMaxTokens() {
+  const s = S.settings || {};   // the strip can render before settings load
+  const base = s.maxTokens > 0 ? s.maxTokens : 2048;
+  const ctx = s.contextSize || 4096;
+  return Math.max(128, Math.min(Math.round(base * currentEffort().tokenScale), Math.floor(ctx / 2)));
+}
+
 function updateContextMeter(built) {
+  S.lastBuild = built;   // the token panel reports on the most recent request
   const el = $('ctx-meter');
-  if (!el) return;
-  const pct = Math.min(100, Math.round((built.used / built.budgetChars) * 100));
-  el.hidden = false;
-  el.textContent = `memory ${pct}%` + (built.trimmed ? ` · ${built.trimmed} older msg${built.trimmed > 1 ? 's' : ''} dropped` : '');
-  el.className = 'muted' + (pct > 85 ? ' ctx-hot' : '');
-  el.title = built.trimmed
-    ? `The oldest ${built.trimmed} message(s) no longer fit in this model's context window. Raise "Context size" in Settings to remember more.`
-    : 'How much of the model\'s context window this conversation is using.';
+  if (el) {
+    const pct = Math.min(100, Math.round((built.used / built.budgetChars) * 100));
+    el.hidden = false;
+    el.textContent = `memory ${pct}%` + (built.trimmed ? ` · ${built.trimmed} older msg${built.trimmed > 1 ? 's' : ''} dropped` : '');
+    el.className = 'muted' + (pct > 85 ? ' ctx-hot' : '');
+  }
+  renderStatusStrip();
+}
+
+/* ---------- status strip ---------- */
+
+const tok = (chars) => Math.round(chars / CHARS_PER_TOKEN);
+
+// What the next request would look like, without sending it — so the strip is
+// accurate before you have said anything, not only after a reply.
+function contextSnapshot() {
+  const s = S.settings || {};
+  const ctx = s.contextSize || 4096;
+  const reserved = effortMaxTokens();
+  const built = S.lastBuild;
+  const usedTok = built ? tok(built.used) : 0;
+  const budgetTok = built ? tok(built.budgetChars) : Math.max(1, ctx - reserved - 300);
+  return {
+    ctx,
+    reserved,
+    usedTok,
+    budgetTok,
+    trimmed: built ? built.trimmed : 0,
+    pct: Math.min(100, Math.round((usedTok / Math.max(1, budgetTok)) * 100)),
+  };
+}
+
+function renderStatusStrip() {
+  const strip = $('status-strip');
+  if (!strip) return;
+  const sel = $('composer-model');
+  const name = S.server && S.server.state === 'ready' && S.server.modelPath
+    ? baseName(S.server.modelPath)
+    : (sel && sel.value && sel.value !== '__none' ? baseName(sel.value) : 'No model');
+  $('st-model').querySelector('.st-val').textContent = name;
+
+  $('st-effort').querySelector('.st-val').textContent = currentEffort().label;
+
+  const snap = contextSnapshot();
+  const seg = $('st-tokens');
+  $('st-ring').style.setProperty('--pct', snap.pct);
+  $('st-tokens-val').textContent = snap.pct + '%';
+  seg.classList.toggle('hot', snap.pct > 85 || snap.trimmed > 0);
+  seg.title = `${snap.usedTok.toLocaleString()} of ~${snap.budgetTok.toLocaleString()} tokens of conversation room used`
+    + (snap.trimmed ? ` · ${snap.trimmed} older message(s) dropped` : '');
+}
+
+function wireStatusStrip() {
+  $('st-model').addEventListener('click', (e) => {
+    const sel = $('composer-model');
+    const opts = [...sel.options].filter((o) => o.value && o.value !== '__none');
+    if (!opts.length) { toast('No models installed — open Models to download one'); showView('models'); return; }
+    openRowMenu(e.currentTarget, opts.map((o) => ({
+      label: o.textContent,
+      run: () => { sel.value = o.value; loadModelFromUi(o.value); renderStatusStrip(); },
+    })), 'up');
+  });
+
+  $('st-effort').addEventListener('click', (e) => {
+    openRowMenu(e.currentTarget, Object.entries(EFFORT).map(([key, v]) => ({
+      label: v.label,
+      run: async () => {
+        S.settings = await api.saveSettings({ effort: key });
+        renderStatusStrip();
+        toast(v.label + ' — ' + v.hint);
+      },
+    })), 'up');
+  });
+
+  $('st-tokens').addEventListener('click', (e) => openTokenPanel(e.currentTarget));
+}
+
+// Where the context window is actually going, plus the two dials that control it.
+function openTokenPanel(anchor) {
+  document.querySelectorAll('.row-menu').forEach((m) => m.remove());
+  const s = S.settings;
+  const snap = contextSnapshot();
+  const b = S.lastBuild;
+
+  // split the used chars into system block / older turns / this message
+  const sysChars = b && b.messages && b.messages[0] && b.messages[0].role === 'system' ? b.messages[0].content.length : 0;
+  const lastM = b && b.messages ? b.messages[b.messages.length - 1] : null;
+  const nowChars = lastM ? (typeof lastM.content === 'string' ? lastM.content.length : 600) : 0;
+  const histChars = Math.max(0, (b ? b.used : 0) - sysChars - nowChars);
+  const total = Math.max(1, b ? b.used : 1);
+  const w = (n) => (b ? (n / total) * Math.min(100, snap.pct) : 0);
+
+  const el = document.createElement('div');
+  el.className = 'row-menu tok-panel';
+  el.innerHTML = `
+    <div class="tok-row"><span>Context window</span><b>${snap.ctx.toLocaleString()} tokens</b></div>
+    <div class="tok-row"><span>Reserved for the reply</span><b>${snap.reserved.toLocaleString()}</b></div>
+    <div class="tok-row"><span>Room for conversation</span><b>${snap.budgetTok.toLocaleString()}</b></div>
+    <div class="tok-bar">
+      <span class="b-sys" style="width:${w(sysChars)}%"></span>
+      <span class="b-hist" style="width:${w(histChars)}%"></span>
+      <span class="b-now" style="width:${w(nowChars)}%"></span>
+    </div>
+    <div class="tok-key">
+      <span><i class="b-sys" style="background:var(--accent)"></i>Instructions ${tok(sysChars)}</span>
+      <span><i class="b-hist" style="background:var(--ok)"></i>History ${tok(histChars)}</span>
+      <span><i class="b-now" style="background:var(--warn)"></i>This turn ${tok(nowChars)}</span>
+    </div>
+    <div class="tok-row"><span>Used</span><b>${snap.usedTok.toLocaleString()} / ${snap.budgetTok.toLocaleString()} (${snap.pct}%)</b></div>
+    ${snap.trimmed ? `<div class="tok-row"><span style="color:var(--warn)">Dropped from memory</span><b style="color:var(--warn)">${snap.trimmed} message${snap.trimmed > 1 ? 's' : ''}</b></div>` : ''}
+    <div class="tok-sep"></div>
+    <label for="tok-ctx">Context size</label>
+    <select id="tok-ctx">
+      ${[2048, 4096, 8192, 16384, 32768, 65536].map((v) => `<option value="${v}" ${s.contextSize === v ? 'selected' : ''}>${v.toLocaleString()} tokens</option>`).join('')}
+    </select>
+    <label for="tok-max">Longest reply</label>
+    <select id="tok-max">
+      ${[256, 512, 1024, 2048, 4096].map((v) => `<option value="${v}" ${s.maxTokens === v ? 'selected' : ''}>${v.toLocaleString()} tokens</option>`).join('')}
+    </select>
+    <div class="tok-note">Bigger context remembers more but uses more memory on your
+      graphics card, and takes effect the next time the model loads.</div>`;
+
+  document.body.appendChild(el);
+  const r = anchor.getBoundingClientRect();
+  el.style.left = Math.min(r.left, window.innerWidth - el.offsetWidth - 8) + 'px';
+  el.style.top = Math.max(8, r.top - el.offsetHeight - 6) + 'px';
+  void el.offsetWidth;               // rAF never fires while occluded — flush, then show
+  el.classList.add('open');
+
+  el.addEventListener('click', (ev) => ev.stopPropagation());
+  el.querySelector('#tok-ctx').addEventListener('change', async (ev) => {
+    S.settings = await api.saveSettings({ contextSize: parseInt(ev.target.value, 10) });
+    renderStatusStrip();
+    toast('Context size saved — reload the model to apply it');
+  });
+  el.querySelector('#tok-max').addEventListener('change', async (ev) => {
+    S.settings = await api.saveSettings({ maxTokens: parseInt(ev.target.value, 10) });
+    renderStatusStrip();
+  });
+
+  const close = () => { el.remove(); document.removeEventListener('click', close); window.removeEventListener('keydown', onKey, true); };
+  const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+  setTimeout(() => document.addEventListener('click', close), 0);
+  window.addEventListener('keydown', onKey, true);
 }
 
 /* ---------- when is a web search actually worth it? ---------- */
@@ -2264,6 +2447,7 @@ async function init() {
   $('nav-chats').querySelector('.sb-ico').innerHTML = ICONS.chats;
   $('nav-projects').querySelector('.sb-ico').innerHTML = ICONS.projects;
   wireSidebarNav();
+  wireStatusStrip();
 
   S.settings = await api.getSettings();
   applyTheme(S.settings.theme || 'dark');   // the stored theme wins over the cached one
@@ -2280,6 +2464,7 @@ async function init() {
   await refreshModels();
   refreshRemoteStatus();
   updatePill();
+  renderStatusStrip();
   renderChatList();
   initPanel();
   newChat();

@@ -57,6 +57,10 @@ function defaultSettings() {
     imageQuant: 'q8_0',    // fp16 weights overflow a 4 GB card; q8_0 fits in ~1.7 GB
     imageDevice: 'vulkan0',
 
+    // How hard the model works before answering: 'quick' | 'balanced' | 'deep'.
+    // Real effect on the request, not a label — see applyEffort() in the renderer.
+    effort: 'balanced',
+
     // ---------- shared engine over the network ----------
     // Host mode: this machine runs the model and lets others on the LAN use it.
     // Off by default — turning it on is what opens the engine beyond loopback.

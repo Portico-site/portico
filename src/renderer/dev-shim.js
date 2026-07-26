@@ -28,6 +28,7 @@
     searchEngines: {},
     searchAlwaysAllSources: false,
     searchMode: 'auto',
+    effort: 'balanced',
     shareEngine: false,
     shareKey: '',
     parallelSlots: 1,
