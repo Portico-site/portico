@@ -1,6 +1,7 @@
 # Portico
 
-A Windows desktop app for chatting with AI models that run **entirely on your own PC**.
+A desktop app for chatting with AI models that run **entirely on your own computer**.
+Windows, macOS and Linux.
 No account, no subscription, no cloud. Your conversations, files and audio never leave the
 machine unless you explicitly switch web search on.
 
@@ -30,23 +31,54 @@ Think of it as a private alternative to ChatGPT or Claude, where you choose the 
 
 ## Requirements
 
-- **Windows 10 or 11**, 64-bit
+- **Windows 10 or 11** (64-bit), **macOS 11+**, or **Linux** (64-bit)
 - **8 GB RAM minimum**, 16 GB comfortable
-- A **GPU helps a lot** but is not required — anything Vulkan-capable (NVIDIA, AMD, Intel)
+- A **GPU helps a lot** but is not required — Vulkan-capable on Windows/Linux
+  (NVIDIA, AMD, Intel), Metal on Apple Silicon
 - Disk space for models: **2 GB** gets you started, more if you collect them
 - **Python 3** only if you want the "Run" button for code snippets
 
 Everything else — the inference engine, the speech engine — ships with the app.
 
+### Platform support
+
+| | Chat | Web search, files, projects | Voice input | Image generation |
+|---|---|---|---|---|
+| **Windows** | ✅ | ✅ | ✅ | ✅ |
+| **macOS** | ✅ | ✅ | build it yourself | build it yourself |
+| **Linux** | ✅ | ✅ | build it yourself | build it yourself |
+
+Windows is the most tested platform. On macOS and Linux the chat engine and the
+whole interface work the same, but the voice and image engines don't publish
+prebuilt binaries — see [resources/RESOURCES.md](resources/RESOURCES.md) to add
+them. The app runs fine without them; those features just show as unavailable.
+
 ---
 
 ## Install
 
+**Windows**
+
 1. Download `Portico Setup <version>.exe` from the releases page.
 2. Run it. Windows will warn about an **unknown publisher** because the app is not
    code-signed — click **More info → Run anyway**.
-3. On first launch, open **Models → Discover** and download a chat model.
-   *Llama 3.2 3B* (2 GB) is a good starting point; *Qwen 2.5 7B* if you have the RAM.
+
+**macOS**
+
+1. Download the `.dmg` (`arm64` for Apple Silicon, `x64` for Intel) and drag Portico
+   to Applications.
+2. The app is not notarized, so Gatekeeper blocks it on first open — **right-click
+   the app → Open**, then confirm. You only do this once.
+
+**Linux**
+
+1. Download the `.AppImage`, then `chmod +x Portico-*.AppImage` and run it —
+   or install the `.deb` with `sudo dpkg -i portico_*.deb`.
+2. GPU acceleration needs a Vulkan driver (`mesa-vulkan-drivers` or the NVIDIA
+   driver). Without one it falls back to CPU, which still works but is slower.
+
+Then, on any platform: open **Models → Discover** and download a chat model.
+*Llama 3.2 3B* (2 GB) is a good starting point; *Qwen 2.5 7B* if you have the RAM.
 
 ---
 
@@ -118,9 +150,19 @@ speed and VRAM.
 
 ```bash
 npm install
-npm start        # run in development
-npm run dist     # build the Windows installer into dist/
+npm start          # run in development
+npm run dist       # Windows installer  -> dist/
+npm run dist:mac   # macOS .dmg + .zip   (must run on macOS)
+npm run dist:linux # Linux AppImage + .deb
 ```
+
+Each platform can only be built on itself — a `.dmg` in particular requires a Mac.
+To build all three without owning the machines, use the included GitHub Actions
+workflow (`.github/workflows/build.yml`): push the repo, open **Actions → build →
+Run workflow**, and download the installers from the run's artifacts.
+
+The native engine binaries are not in git (too large). CI downloads them per
+platform; for local builds see [resources/RESOURCES.md](resources/RESOURCES.md).
 
 Auto-update is wired but inactive until you publish. To enable it: set `build.publish.owner`
 and `repo` in `package.json`, then attach the installer to a GitHub Release whose tag matches
