@@ -1,0 +1,46 @@
+# Dependencies — restored by `npm ci`, never committed
+node_modules/
+
+# Build output
+dist/
+out/
+
+# Native engine binaries.
+# These are large (hundreds of MB) and are fetched per-platform by CI at build
+# time — see .github/workflows/build.yml and resources/RESOURCES.md.
+# GitHub rejects files over 100 MB, so these must stay out of git.
+resources/llama/
+resources/llama-mac-arm64/
+resources/llama-mac-x64/
+resources/llama-linux-x64/
+resources/whisper/
+resources/whisper-mac-arm64/
+resources/whisper-mac-x64/
+resources/whisper-linux-x64/
+resources/sd/
+# ...but keep the folder placeholders so electron-builder finds the paths
+!resources/**/.gitkeep
+
+# Downloaded GGUF / safetensors models — user data, many GB
+models/
+*.gguf
+*.safetensors
+*.bin
+
+# Logs and local state
+*.log
+logs/
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Machine-local Claude Code settings (personal paths, not shared config)
+.claude/settings.local.json
+
+# Secrets — never commit signing certs or tokens
+.env
+*.p12
+*.pem

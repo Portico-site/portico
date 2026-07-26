@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file:; frame-src file:; connect-src http://127.0.0.1:*;" />
+  <title>Portico</title>
+  <link rel="stylesheet" href="vendor/hljs-dark.css" id="hljs-theme" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="root">
+    <aside id="sidebar">
+      <div class="sb-brand">
+        <span class="brand-mark"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M14 8 H86 V38 H68 A18 18 0 0 0 32 38 H14 Z"/><rect x="14" y="42" width="26" height="6"/><rect x="18" y="48" width="18" height="26"/><rect x="14" y="74" width="26" height="16"/><rect x="60" y="42" width="26" height="6"/><rect x="64" y="48" width="18" height="26"/><rect x="60" y="74" width="26" height="16"/><rect x="6" y="92" width="88" height="4"/></svg></span>
+        <span class="brand-name">Portico</span>
+        <button id="btn-collapse" class="icon-btn" title="Collapse sidebar"></button>
+      </div>
+
+      <button id="btn-new-chat">
+        <span class="plus">+</span> New chat
+      </button>
+
+      <div class="sb-search">
+        <input id="search" type="text" placeholder="Search chats…" spellcheck="false" />
+      </div>
+
+      <div class="sb-projects">
+        <div class="sb-section-head">
+          <span>Projects</span>
+          <button id="btn-new-project" class="icon-btn" title="New project">+</button>
+        </div>
+        <div id="project-list"></div>
+      </div>
+
+      <nav id="chat-list"></nav>
+
+      <div class="sb-bottom">
+        <button id="model-pill" title="Manage models">
+          <span id="pill-dot" class="dot"></span>
+          <span id="pill-text">No model loaded</span>
+        </button>
+        <button id="btn-settings" class="icon-btn" title="Settings"></button>
+      </div>
+    </aside>
+
+    <main id="main">
+      <header id="main-header">
+        <button id="btn-expand" class="icon-btn" title="Open sidebar" hidden></button>
+        <div id="header-title">New chat</div>
+        <div class="header-actions">
+          <button id="btn-panel" class="icon-btn" title="Chat settings"></button>
+        </div>
+      </header>
+
+      <!-- Chat view -->
+      <section id="view-chat" class="view">
+        <div id="error-banner" hidden>
+          <span id="error-text"></span>
+          <button id="btn-error-retry">Reload model</button>
+          <button id="btn-error-dismiss" class="icon-btn">✕</button>
+        </div>
+        <div id="chat-scroll">
+          <div id="empty-state">
+            <div class="greeting-mark"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M14 8 H86 V38 H68 A18 18 0 0 0 32 38 H14 Z"/><rect x="14" y="42" width="26" height="6"/><rect x="18" y="48" width="18" height="26"/><rect x="14" y="74" width="26" height="16"/><rect x="60" y="42" width="26" height="6"/><rect x="64" y="48" width="18" height="26"/><rect x="60" y="74" width="26" height="16"/><rect x="6" y="92" width="88" height="4"/></svg></div>
+            <h1 class="greeting">What's on your mind?</h1>
+          </div>
+          <div id="messages"></div>
+        </div>
+        <div id="composer-wrap">
+          <div id="composer">
+            <div id="attach-strip" hidden></div>
+            <textarea id="input" rows="1" placeholder="Message your local model…" spellcheck="false"></textarea>
+            <div class="composer-row">
+              <div class="composer-left">
+                <button id="btn-attach" class="icon-btn" title="Attach files (PDF, text, code…)"></button>
+                <button id="btn-image" class="icon-btn" title="Generate an image (/image …)"></button>
+                <button id="btn-mic" class="icon-btn" title="Dictate a message (speech stays on this PC)"></button>
+                <span id="search-wrap" class="search-wrap">
+                  <button id="btn-search" class="icon-btn" title="Web search: off"></button>
+                  <div id="search-menu" class="search-menu" hidden></div>
+                </span>
+                <select id="composer-model" title="Model"></select>
+              </div>
+              <div class="composer-right">
+                <span id="ctx-meter" class="muted" hidden></span>
+                <span id="gen-speed" class="muted"></span>
+                <button id="btn-send" title="Send"></button>
+              </div>
+            </div>
+          </div>
+          <div class="composer-hint" id="composer-hint">Runs 100% locally · nothing leaves your PC</div>
+        </div>
+      </section>
+
+      <!-- Models view -->
+      <section id="view-models" class="view" hidden>
+        <div class="page">
+          <div class="page-head">
+            <h2>Models</h2>
+            <div class="tabs">
+              <button class="tab active" data-tab="installed">Installed</button>
+              <button class="tab" data-tab="discover">Discover</button>
+            </div>
+          </div>
+          <div id="tab-installed" class="tab-body"></div>
+          <div id="tab-discover" class="tab-body" hidden></div>
+        </div>
+      </section>
+
+      <!-- Project view -->
+      <section id="view-project" class="view" hidden>
+        <div class="page">
+          <div class="page-head">
+            <h2 id="proj-title">Project</h2>
+            <button class="btn danger" id="proj-delete">Delete project</button>
+          </div>
+          <label class="field"><span>Name</span>
+            <input id="proj-name" type="text" spellcheck="false" />
+          </label>
+          <label class="field"><span>Standing instructions <em>added to every chat in this project</em></span>
+            <textarea id="proj-prompt" rows="5" spellcheck="false" placeholder="e.g. You are helping with my Data Analysis course. Answer in Spanish unless I write in English."></textarea>
+          </label>
+          <div class="field">
+            <span>Reference files <em>shared by every chat in this project</em></span>
+            <div id="proj-files"></div>
+            <div class="field-row" style="margin-top:8px">
+              <button class="btn" id="proj-add-files">Add files…</button>
+              <span class="hint" id="proj-files-hint"></span>
+            </div>
+          </div>
+          <div><button class="btn primary" id="proj-save">Save project</button></div>
+        </div>
+      </section>
+
+      <!-- Settings view -->
+      <section id="view-settings" class="view" hidden>
+        <div class="page">
+          <div class="page-head"><h2>Settings</h2></div>
+          <div class="settings-form" id="settings-form"></div>
+        </div>
+      </section>
+    </main>
+
+    <aside id="artifact-panel" class="closed">
+      <div class="ap-head">
+        <span class="ap-title" id="artifact-title">Artifact</span>
+        <span class="ap-tabs">
+          <button id="ap-tab-preview" class="ap-tab active">Preview</button>
+          <button id="ap-tab-code" class="ap-tab">Code</button>
+        </span>
+        <span class="ap-actions">
+          <button id="ap-open" class="icon-btn" title="Open in browser">↗</button>
+          <button id="ap-save" class="icon-btn" title="Save as file">↓</button>
+          <button id="ap-close" class="icon-btn" title="Close">✕</button>
+        </span>
+      </div>
+      <div class="ap-body">
+        <iframe id="artifact-frame" sandbox="allow-scripts allow-forms allow-modals allow-popups" referrerpolicy="no-referrer"></iframe>
+        <pre id="artifact-code" hidden><code class="hljs"></code></pre>
+      </div>
+    </aside>
+
+    <aside id="panel" class="closed">
+      <h3>Chat settings</h3>
+      <label class="field">
+        <span>Assistant</span>
+        <select id="p-assistant"></select>
+        <span class="hint" id="p-assistant-hint">A saved persona: instructions plus generation settings.</span>
+      </label>
+      <div class="field-row">
+        <button class="btn" id="p-save-assistant">Save as assistant…</button>
+        <button class="btn" id="p-manage-assistants">Manage…</button>
+      </div>
+      <label class="field">
+        <span>System prompt</span>
+        <textarea id="p-system" rows="5" placeholder="e.g. You are a helpful assistant…" spellcheck="false"></textarea>
+      </label>
+      <label class="field">
+        <span>Temperature <em id="p-temp-v"></em></span>
+        <input id="p-temp" type="range" min="0" max="2" step="0.05" />
+      </label>
+      <label class="field">
+        <span>Top P <em id="p-topp-v"></em></span>
+        <input id="p-topp" type="range" min="0" max="1" step="0.01" />
+      </label>
+      <label class="field">
+        <span>Max reply tokens</span>
+        <input id="p-maxtok" type="number" min="64" max="16384" step="64" />
+      </label>
+      <div class="panel-note">Saved automatically. Applies to the next message.</div>
+    </aside>
+  </div>
+
+  <div id="toast" hidden></div>
+
+  <div class="modal-overlay" id="modal" hidden>
+    <div class="modal-box">
+      <h3 id="modal-title"></h3>
+      <p id="modal-message" class="modal-message" hidden></p>
+      <input id="modal-input" type="text" spellcheck="false" />
+      <div class="modal-actions">
+        <button class="btn" id="modal-cancel">Cancel</button>
+        <button class="btn primary" id="modal-ok">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="vendor/marked.min.js"></script>
+  <script src="vendor/purify.min.js"></script>
+  <script src="dev-shim.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

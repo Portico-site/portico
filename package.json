@@ -1,0 +1,102 @@
+{
+  "name": "pristudio",
+  "productName": "Portico",
+  "version": "0.19.4",
+  "description": "Chat with language models running 100% locally on your PC",
+  "main": "src/main/main.js",
+  "author": "jolop",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "highlight.js": "^11.10.0",
+    "pdf-parse": "^2.4.5"
+  },
+  "devDependencies": {
+    "dompurify": "^3.4.12",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "marked": "^15.0.0",
+    "ws": "^8.21.1"
+  },
+  "build": {
+    "appId": "com.jolop.pristudio",
+    "productName": "Portico",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "YOUR_GITHUB_USERNAME",
+        "repo": "portico"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "resources/icon.ico",
+      "extraResources": [
+        {
+          "from": "resources/whisper/Release",
+          "to": "whisper",
+          "filter": [
+            "whisper-cli.exe",
+            "*.dll"
+          ]
+        },
+        {
+          "from": "resources/llama",
+          "to": "llama",
+          "filter": [
+            "llama-server.exe",
+            "llama-server-impl.dll",
+            "llama.dll",
+            "llama-common.dll",
+            "mtmd.dll",
+            "ggml.dll",
+            "ggml-base.dll",
+            "ggml-vulkan.dll",
+            "ggml-cpu-*.dll",
+            "libomp140.x86_64.dll"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] },
+        { "target": "zip", "arch": ["arm64", "x64"] }
+      ],
+      "category": "public.app-category.productivity",
+      "extraResources": [
+        { "from": "resources/llama-mac-${arch}", "to": "llama" },
+        { "from": "resources/whisper-mac-${arch}", "to": "whisper" }
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "maintainer": "jolop",
+      "extraResources": [
+        { "from": "resources/llama-linux-${arch}", "to": "llama" },
+        { "from": "resources/whisper-linux-${arch}", "to": "whisper" }
+      ]
+    }
+  }
+}

@@ -1,0 +1,84 @@
+name: build
+
+# Builds Portico for Windows, macOS and Linux on GitHub's own runners, so you
+# don't need to own a Mac or a Linux box. Run it from the Actions tab
+# ("Run workflow"), or push a tag like v0.20.0.
+#
+# Each job downloads the matching prebuilt llama.cpp binaries, then packages the
+# app with electron-builder. Voice (whisper) and image gen are Windows-only for
+# now; see resources/RESOURCES.md to add them per platform.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            llama_pat: bin-win-vulkan-x64
+            dest: resources/llama
+            eb: --win
+          - os: macos-14          # Apple Silicon runner
+            llama_pat: bin-macos-arm64
+            dest: resources/llama-mac-arm64
+            eb: --mac --arm64
+          - os: ubuntu-latest
+            llama_pat: bin-ubuntu-vulkan-x64
+            dest: resources/llama-linux-x64
+            eb: --linux
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Pull the latest llama.cpp release asset for this platform and flatten the
+      # server binary + its shared libraries into the platform's resource folder.
+      - name: Fetch llama.cpp binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
+          url=$(curl -sL -H "Authorization: Bearer ${{ github.token }}" "$api" \
+            | jq -r --arg pat "${{ matrix.llama_pat }}" \
+              '.assets[] | select(.name | contains($pat)) | .browser_download_url' | head -n1)
+          echo "Asset: $url"
+          test -n "$url"
+          curl -sL "$url" -o llama.zip
+          rm -rf _llama && mkdir _llama && unzip -q -o llama.zip -d _llama
+          # find the directory that actually contains llama-server[.exe]
+          bindir=$(dirname "$(find _llama -type f -name 'llama-server*' | head -n1)")
+          echo "Binaries in: $bindir"
+          mkdir -p "${{ matrix.dest }}"
+          cp -f "$bindir"/* "${{ matrix.dest }}"/
+          # macOS/Linux binaries must be executable after unzip
+          chmod +x "${{ matrix.dest }}"/llama-server* 2>/dev/null || true
+          ls -la "${{ matrix.dest }}"
+
+      - name: Build installer
+        shell: bash
+        run: npx electron-builder ${{ matrix.eb }} --publish never
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: portico-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+          if-no-files-found: ignore
