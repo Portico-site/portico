@@ -92,6 +92,25 @@ function baseName(p) {
   return p ? p.split(/[\\/]/).pop().replace(/\.gguf$/i, '') : '';
 }
 
+// "Qwen2.5-Coder-7B-Instruct-Q4_K_M" -> "Qwen2.5 Coder 7B".
+// The status strip wants a name a person would say out loud, not the filename:
+// the quantisation and the word "Instruct" are on every model and distinguish
+// nothing, so they only crowd out the part that matters.
+function shortModelName(p) {
+  let n = baseName(p);
+  if (!n) return '';
+  n = n
+    // trailing quantisation: -Q4_K_M, .Q8_0, -IQ4_XS, -f16 (the underscores are
+    // part of the token, so this has to consume them to reach the end)
+    .replace(/[.\-_](?:i?q\d+(?:_[a-z0-9]+)*|f16|fp16|bf16)$/i, '')
+    // "instruct"/"chat"/"it" appear on nearly every model and separate nothing
+    .replace(/[.\-_](?:instruct|chat|it|sft|hf)(?=[.\-_]|$)/gi, '')
+    .replace(/[\-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return n;
+}
+
 let toastTimer = null;
 function toast(msg, ms = 3200) {
   const t = $('toast');
@@ -2208,10 +2227,12 @@ function renderStatusStrip() {
   const strip = $('status-strip');
   if (!strip) return;
   const sel = $('composer-model');
-  const name = S.server && S.server.state === 'ready' && S.server.modelPath
-    ? baseName(S.server.modelPath)
-    : (sel && sel.value && sel.value !== '__none' ? baseName(sel.value) : 'No model');
-  $('st-model').querySelector('.st-val').textContent = name;
+  const path = S.server && S.server.state === 'ready' && S.server.modelPath
+    ? S.server.modelPath
+    : (sel && sel.value && sel.value !== '__none' ? sel.value : '');
+  const modelSeg = $('st-model');
+  modelSeg.querySelector('.st-val').textContent = path ? shortModelName(path) : 'No model';
+  modelSeg.title = path ? baseName(path) : 'No model loaded';   // full filename on hover
 
   $('st-effort').querySelector('.st-val').textContent = currentEffort().label;
 

@@ -74,7 +74,11 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   check(saved === 'deep', 'choosing Deep saves the setting', 'effort = ' + saved);
   check((await c.eval(`document.querySelector('#st-effort .st-val').textContent`)) === 'Deep', 'strip updates to Deep');
 
-  // effort must actually change the request, not just the label
+  // Effort must actually change the request, not just the label.
+  // Pin context and reply length first: the reply is always capped at half the
+  // context window, and if that cap binds then every effort level lands on the
+  // same number and the comparison below says nothing.
+  await c.eval(`(async()=>{ S.settings = await window.pristudio.saveSettings({contextSize:8192, maxTokens:1024, effort:'deep'}); })()`);
   const deepMax = await c.eval(`effortMaxTokens()`);
   const deepSys = await c.eval(`buildApiMessages([{role:'user',content:'what is 17% of 240?'}]).messages[0].content`);
   await c.eval(`(async()=>{ S.settings = await window.pristudio.saveSettings({effort:'quick'}); })()`);
