@@ -1789,6 +1789,24 @@ function closeArtifact() {
   $('artifact-frame').src = 'about:blank';
 }
 
+// Windows draws the minimise/maximise/close buttons over the top-right of the
+// frame. Measure how much room they take so panels can keep their own controls
+// clear of them — hard-coding it breaks at other display scalings.
+function trackWindowControls() {
+  const apply = () => {
+    const o = navigator.windowControlsOverlay;
+    if (!o || !o.visible) return;                 // no overlay: the CSS fallback stands
+    const bar = o.getTitlebarAreaRect();
+    const w = Math.max(0, window.innerWidth - bar.width - bar.x);
+    document.documentElement.style.setProperty('--wco-w', Math.round(w) + 'px');
+  };
+  apply();
+  if (navigator.windowControlsOverlay) {
+    navigator.windowControlsOverlay.addEventListener('geometrychange', apply);
+  }
+  window.addEventListener('resize', apply);
+}
+
 /* ---------- image generation ---------- */
 
 const RE_IMAGE_CMD = /^\/(image|img|draw)\s+([\s\S]+)/i;
@@ -2152,10 +2170,11 @@ function effortMaxTokens() {
 
 function updateContextMeter(built) {
   S.lastBuild = built;   // the token panel reports on the most recent request
+  // Kept up to date but not shown: the status strip's ring displays the same figure,
+  // and having both meant "18%" appeared twice side by side.
   const el = $('ctx-meter');
   if (el) {
     const pct = Math.min(100, Math.round((built.used / built.budgetChars) * 100));
-    el.hidden = false;
     el.textContent = `memory ${pct}%` + (built.trimmed ? ` · ${built.trimmed} older msg${built.trimmed > 1 ? 's' : ''} dropped` : '');
     el.className = 'muted' + (pct > 85 ? ' ctx-hot' : '');
   }
@@ -2277,7 +2296,11 @@ function openTokenPanel(anchor) {
 
   document.body.appendChild(el);
   const r = anchor.getBoundingClientRect();
-  el.style.left = Math.min(r.left, window.innerWidth - el.offsetWidth - 8) + 'px';
+  // Right-align to the composer column rather than to the button: anchored left it
+  // opens across the conversation, which is what made it feel like it was in the way.
+  const col = ($('composer-wrap') || anchor).getBoundingClientRect();
+  const left = Math.max(8, Math.min(col.right - el.offsetWidth, window.innerWidth - el.offsetWidth - 8));
+  el.style.left = left + 'px';
   el.style.top = Math.max(8, r.top - el.offsetHeight - 6) + 'px';
   void el.offsetWidth;               // rAF never fires while occluded — flush, then show
   el.classList.add('open');
@@ -2448,6 +2471,7 @@ async function init() {
   $('nav-projects').querySelector('.sb-ico').innerHTML = ICONS.projects;
   wireSidebarNav();
   wireStatusStrip();
+  trackWindowControls();
 
   S.settings = await api.getSettings();
   applyTheme(S.settings.theme || 'dark');   // the stored theme wins over the cached one
@@ -2529,6 +2553,10 @@ async function init() {
   $('ap-tab-preview').addEventListener('click', () => showArtifactTab('preview'));
   $('ap-tab-code').addEventListener('click', () => showArtifactTab('code'));
   $('ap-close').addEventListener('click', closeArtifact);
+  // a way out that cannot be covered by anything
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('artifact-panel').classList.contains('closed')) closeArtifact();
+  });
   $('ap-open').addEventListener('click', () => S.artifact && api.openArtifactExternally(S.artifact.path));
   $('ap-save').addEventListener('click', async () => {
     if (!S.artifact) return;
