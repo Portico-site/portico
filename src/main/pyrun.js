@@ -95,6 +95,63 @@ try:
     matplotlib.use("Agg")           # render to file, never open a window
     import matplotlib.pyplot as plt
     plt.show = lambda *a, **k: None  # plt.show() must not block
+
+    # House style. matplotlib's defaults date from its MATLAB-imitating days and
+    # are the main reason generated charts look dated: a full box frame, tick
+    # marks on all four sides, ten saturated primaries, cramped margins. These are
+    # only DEFAULTS — anything the code sets explicitly, or any style it selects,
+    # still wins.
+    plt.rcParams.update({
+        # type: a humanist sans if the machine has one, never the 2003 fallback
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Segoe UI", "Inter", "Helvetica Neue", "Arial", "DejaVu Sans"],
+        "font.size": 10.5,
+        "axes.titlesize": 13,
+        "axes.titleweight": "600",
+        "axes.titlelocation": "left",   # a headline above the plot, not a caption
+        "axes.titlepad": 14,
+        "axes.labelsize": 10,
+        "axes.labelcolor": "#55534e",
+        "xtick.labelsize": 9.5,
+        "ytick.labelsize": 9.5,
+
+        # remove: the frame and tick marks carry no information
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "axes.edgecolor": "#c9c6bf",
+        "axes.linewidth": 0.9,
+        "xtick.color": "#55534e",
+        "ytick.color": "#55534e",
+        "xtick.major.size": 0,
+        "ytick.major.size": 0,
+        "xtick.minor.size": 0,
+        "ytick.minor.size": 0,
+
+        # a faint horizontal rule is enough to read values against
+        "axes.grid": True,
+        "axes.grid.axis": "y",
+        "grid.color": "#e5e2da",
+        "grid.linewidth": 0.8,
+        "axes.axisbelow": True,        # data in front of the grid, never behind
+
+        # colour that means something: a small muted set, not ten primaries
+        "axes.prop_cycle": plt.cycler(color=[
+            "#d97757", "#5f8d7e", "#6b8cba", "#c9a227",
+            "#8b6f9e", "#7a7a72", "#b0553a", "#3f6b5c",
+        ]),
+        "lines.linewidth": 2.0,
+        "lines.solid_capstyle": "round",
+        "patch.edgecolor": "none",
+
+        # room to breathe, and a legend that doesn't box itself in
+        "figure.figsize": (7.2, 4.4),
+        "figure.dpi": 110,
+        "figure.facecolor": "white",
+        "axes.facecolor": "white",
+        "savefig.facecolor": "white",
+        "legend.frameon": False,
+        "legend.fontsize": 9.5,
+    })
     have_mpl = True
 except Exception:
     pass

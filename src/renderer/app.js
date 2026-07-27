@@ -2121,6 +2121,49 @@ function needsAppFacts(text) {
   return RE_ABOUT_AI.test(String(text || '')) || RE_META_CONVO.test(String(text || ''));
 }
 
+// Design direction for anything that will be looked at rather than read.
+//
+// Left alone, a model reaches for the middle of its training data — Arial, #333,
+// padding: 20px — because nothing asked otherwise. Naming what NOT to do matters
+// as much as the positives: those defaults are strong attractors, and small models
+// fall back to them unless they are ruled out explicitly.
+const DESIGN_GUIDANCE = [
+  'When you produce a web page, interface or anything visual, design it deliberately:',
+  '- Do NOT use Arial, Times, #333 text, default blue links, or a bare white page. Those are the defaults you fall back on; avoid them.',
+  '- Type: one modern sans (system-ui, Inter, Segoe UI). Set a clear scale — large heading, smaller body — and use weight, not colour, for emphasis.',
+  '- Space: be generous. Padding around sections, a max-width near 70ch on text so lines stay readable, and real gaps between blocks. Cramped layouts are the commonest mistake.',
+  '- Colour: pick ONE accent and a few neutrals. Colour should carry meaning; do not decorate with it. Aim for near-black on off-white rather than pure #000 on #fff.',
+  '- Remove rather than add: no unnecessary borders, boxes or shadows. If a line carries no information, drop it.',
+  '- Finish it: hover states on anything clickable, a consistent corner radius, and a layout that still works narrow.',
+  'Write complete, self-contained code. Do not explain the design unless asked.',
+].join('\n');
+
+// Only for requests that will actually be looked at — the guidance costs context,
+// and is noise on an ordinary question.
+const RE_VISUAL_TASK = new RegExp(
+  '\\b(web ?page|web ?site|landing page|html|css|tailwind|front-?end|ui|interface|'
+  + 'dashboard|layout|design|style ?sheet|component|form|button|navbar|hero section|'
+  + 'portfolio|blog|svg|chart|graph|plot|diagram|infographic|poster|slide)\\b', 'i');
+const RE_BUILD_VERB = /\b(make|build|create|design|write|generate|code|draw|show|give me|need|want)\b/i;
+// "design" is both a thing to ask for and a thing to ask about, so it matches itself
+// in a sentence like "the design of the Eiffel Tower". Questions about a subject are
+// not requests to build one.
+const RE_ASKING_ABOUT = new RegExp(
+  '\\b(what do you think|what.s your (opinion|take)|thoughts on|opinion (on|about)|'
+  + 'how (does|did|do)|why (is|are|do|did)|tell me about|what (is|are|was|were)|'
+  + 'explain|history of|who (designed|made|built|created))\\b', 'i');
+
+// Some nouns are only ever asked for, not asked about — "a dashboard of my
+// expenses" is a request even with no verb in sight.
+const RE_STRONG_VISUAL = /\b(web ?page|web ?site|landing page|dashboard|chart|graph|plot|infographic|poster|slide deck)\b/i;
+
+function needsDesignGuidance(text) {
+  const t = String(text || '');
+  if (RE_ASKING_ABOUT.test(t)) return false;
+  if (RE_STRONG_VISUAL.test(t)) return true;
+  return RE_VISUAL_TASK.test(t) && RE_BUILD_VERB.test(t);
+}
+
 // A chat's project contributes standing instructions plus its reference files.
 // Local models have small context windows, so the files get a fixed slice of the
 // budget and are trimmed rather than allowed to crowd out the conversation.
@@ -2164,8 +2207,9 @@ function buildApiMessages(history) {
   // are part of the budget, or the history loop would overfill the context window.
   const sys = (s.systemPrompt || '').trim();
   const extra = lastMsg && needsAppFacts(lastMsg.content) ? APP_FACTS : '';
+  const design = lastMsg && needsDesignGuidance(lastMsg.content) ? DESIGN_GUIDANCE : '';
   const effortSys = currentEffort().system;
-  const systemText = [projectContext(budgetChars), sys, effortSys, extra].filter(Boolean).join('\n\n');
+  const systemText = [projectContext(budgetChars), sys, effortSys, design, extra].filter(Boolean).join('\n\n');
   let used = systemText.length;
   const lastContent = lastMsg ? apiContent(lastMsg, budgetChars) : '';
   used += lastContent.length;

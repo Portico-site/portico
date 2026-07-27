@@ -74,6 +74,24 @@ class ServerManager extends EventEmitter {
     return devices.slice().sort((a, b) => score(b) - score(a))[0].id;
   }
 
+  // Is this reply real text, or is the backend producing rubbish?
+  // Deliberately crude and model-agnostic: a broken device gives back one character
+  // over and over, or a wall of replacement characters, and both are easy to spot
+  // without assuming anything about what the model was going to say.
+  static looksCoherent(s) {
+    const t = String(s || '').trim();
+    if (t.length < 4) return false;
+    const printable = (t.match(/[\x20-\x7E]/g) || []).length / t.length;
+    if (printable < 0.7) return false;                 // mostly not plain text
+    const counts = Object.create(null);
+    for (const ch of t) counts[ch] = (counts[ch] || 0) + 1;
+    const topShare = Math.max(...Object.values(counts)) / t.length;
+    if (topShare > 0.5) return false;                  // one character dominates
+    // real words, or a plain list of numbers — the timing prompt asks the model to
+    // count, so a correct reply legitimately contains no letters at all
+    return /[a-z]{2,}/i.test(t) || /\d+\s*,\s*\d+\s*,\s*\d+/.test(t);
+  }
+
   // Times a short generation on each device so the choice rests on evidence.
   // Runs its own server instances on a spare port and leaves the live one alone;
   // onProgress reports which device is being measured.
@@ -157,8 +175,18 @@ class ServerManager extends EventEmitter {
         const r = await ask(100);
         const secs = (Date.now() - t0) / 1000;
         const n = (r && r.usage && r.usage.completion_tokens) || 0;
+        const text = (r && r.choices && r.choices[0] && r.choices[0].message
+          && r.choices[0].message.content || '').trim();
         clearTimeout(giveUp);
-        done(n > 0 && secs > 0 ? { tps: n / secs } : { tps: 0, error: 'No reply from the engine.' });
+
+        if (!(n > 0 && secs > 0)) return done({ tps: 0, error: 'No reply from the engine.' });
+        // Speed counts for nothing if the words are wrong. Some backends run fast
+        // and emit nonsense — measured here on an integrated GPU that was twice as
+        // quick as the discrete card and produced nothing but repeated characters.
+        if (!ServerManager.looksCoherent(text)) {
+          return done({ tps: 0, error: 'This device runs, but produces garbled text.' });
+        }
+        done({ tps: n / secs });
       };
       waitThenTime();
     });
