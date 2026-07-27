@@ -151,6 +151,57 @@ const CATALOG = [
     desc: 'Neutral, highly steerable assistant — great at following complex instructions and personas. ~6 GB.',
   },
 
+  // ---------- Mixture of Experts ----------
+  // These hold many "expert" sub-networks but only run two of them per word. That
+  // buys the speed of a small model at the memory cost of a large one — so the size
+  // below is what must fit in RAM, while the speed feels like the "active" figure.
+  // Every URL and size here was checked against the file itself.
+  {
+    id: 'granite-3.1-moe',
+    name: 'Granite 3.1 MoE (3B, 800M active)',
+    cat: 'Mixture of Experts',
+    file: 'granite-3.1-3b-a800m-instruct-Q4_K_M.gguf',
+    url: 'https://huggingface.co/bartowski/granite-3.1-3b-a800m-instruct-GGUF/resolve/main/granite-3.1-3b-a800m-instruct-Q4_K_M.gguf',
+    sizeGB: 1.9,
+    desc: 'IBM’s tiny mixture-of-experts. Only 800M of its 3B run per word, so it is very quick even on a laptop with no graphics card. ~2 GB.',
+  },
+  {
+    id: 'olmoe-1b-7b',
+    name: 'OLMoE (7B, 1B active)',
+    cat: 'Mixture of Experts',
+    file: 'olmoe-1b-7b-0924-instruct-q4_k_m.gguf',
+    url: 'https://huggingface.co/allenai/OLMoE-1B-7B-0924-Instruct-GGUF/resolve/main/olmoe-1b-7b-0924-instruct-q4_k_m.gguf',
+    sizeGB: 3.9,
+    desc: 'Fully open model from Allen AI. Reads like a 7B, runs at roughly 1B speed. ~4 GB.',
+  },
+  {
+    id: 'deepseek-v2-lite',
+    name: 'DeepSeek V2 Lite (16B, 2.4B active)',
+    cat: 'Mixture of Experts',
+    file: 'DeepSeek-V2-Lite-Chat-Q4_K_M.gguf',
+    url: 'https://huggingface.co/second-state/DeepSeek-V2-Lite-Chat-GGUF/resolve/main/DeepSeek-V2-Lite-Chat-Q4_K_M.gguf',
+    sizeGB: 9.7,
+    desc: '16B of knowledge at about 2.4B speed. Needs ~11 GB of RAM free, but answers far faster than its size suggests.',
+  },
+  {
+    id: 'deepseek-coder-v2-lite',
+    name: 'DeepSeek Coder V2 Lite (16B, 2.4B active)',
+    cat: 'Mixture of Experts',
+    file: 'DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf',
+    url: 'https://huggingface.co/bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF/resolve/main/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf',
+    sizeGB: 9.7,
+    desc: 'The same idea aimed at code — strong at many languages, and quick for its size. Needs ~11 GB of RAM free.',
+  },
+  {
+    id: 'qwen3-30b-a3b',
+    name: 'Qwen3 30B A3B (30B, 3B active)',
+    cat: 'Mixture of Experts',
+    file: 'Qwen3-30B-A3B-Q4_K_M.gguf',
+    url: 'https://huggingface.co/Qwen/Qwen3-30B-A3B-GGUF/resolve/main/Qwen3-30B-A3B-Q4_K_M.gguf',
+    sizeGB: 17.3,
+    desc: 'Only 3B of its 30B run per word, so it is quick — but all 30B must still fit in memory. Needs ~20 GB free (32 GB RAM PC).',
+  },
+
   // ---------- For powerful PCs ----------
   {
     id: 'qwen3-14b',
@@ -187,6 +238,15 @@ const CATALOG = [
     url: 'https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-32B-Q4_K_M.gguf',
     sizeGB: 19.9,
     desc: 'The strongest local reasoner here. Needs ~22 GB (32 GB RAM PC).',
+  },
+  {
+    id: 'llama-3.3-70b',
+    name: 'Llama 3.3 70B Instruct',
+    cat: 'For powerful PCs',
+    file: 'Llama-3.3-70B-Instruct-Q4_K_M.gguf',
+    url: 'https://huggingface.co/bartowski/Llama-3.3-70B-Instruct-GGUF/resolve/main/Llama-3.3-70B-Instruct-Q4_K_M.gguf',
+    sizeGB: 42.5,
+    desc: 'Flagship-class open model. Only for 64 GB RAM machines or serious GPUs (~45 GB).',
   },
   // ---------- Vision (needs the matching projector below) ----------
   {
@@ -273,15 +333,6 @@ const CATALOG = [
     desc: 'The original full SDXL — 25–30 steps, stronger prompt following than Turbo. Slow on 4 GB cards.',
   },
 
-  {
-    id: 'llama-3.3-70b',
-    name: 'Llama 3.3 70B Instruct',
-    cat: 'For powerful PCs',
-    file: 'Llama-3.3-70B-Instruct-Q4_K_M.gguf',
-    url: 'https://huggingface.co/bartowski/Llama-3.3-70B-Instruct-GGUF/resolve/main/Llama-3.3-70B-Instruct-Q4_K_M.gguf',
-    sizeGB: 42.5,
-    desc: 'Flagship-class open model. Only for 64 GB RAM machines or serious GPUs (~45 GB).',
-  },
 ];
 
 // A chat model becomes a vision model when a matching mmproj-*.gguf sits beside it.
