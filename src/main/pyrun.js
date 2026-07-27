@@ -107,7 +107,7 @@ try:
         "font.sans-serif": ["Segoe UI", "Inter", "Helvetica Neue", "Arial", "DejaVu Sans"],
         "font.size": 10.5,
         "axes.titlesize": 13,
-        "axes.titleweight": "600",
+        "axes.titleweight": "bold",
         "axes.titlelocation": "left",   # a headline above the plot, not a caption
         "axes.titlepad": 14,
         "axes.labelsize": 10,
@@ -152,6 +152,30 @@ try:
         "legend.frameon": False,
         "legend.fontsize": 9.5,
     })
+    # Models are trained on years of pre-3.6 examples and still write
+    # plt.style.use("seaborn-whitegrid"), a name matplotlib removed in 3.6 (it is
+    # "seaborn-v0_8-whitegrid" now). That raises and kills the whole snippet. Repair
+    # the old names, and treat a genuinely unknown style as a warning rather than a
+    # crash — a chart that renders in the house style beats a traceback.
+    _style_use = plt.style.use
+    def _forgiving_style_use(style, *args, **kwargs):
+        many = isinstance(style, (list, tuple))
+        names = list(style) if many else [style]
+        fixed = []
+        for n in names:
+            if isinstance(n, str) and n.startswith("seaborn") and not n.startswith("seaborn-v0_8"):
+                renamed = n.replace("seaborn", "seaborn-v0_8", 1)
+                if renamed in plt.style.available:
+                    n = renamed
+            fixed.append(n)
+        try:
+            return _style_use(fixed if many else fixed[0], *args, **kwargs)
+        except Exception:
+            sys.stderr.write("[portico] style %r is not available in matplotlib %s; "
+                             "keeping the default look\\n" % (style, matplotlib.__version__))
+            return None
+    plt.style.use = _forgiving_style_use
+
     have_mpl = True
 except Exception:
     pass
