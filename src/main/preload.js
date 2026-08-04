@@ -76,6 +76,7 @@ contextBridge.exposeInMainWorld('pristudio', {
   networkInfo: () => ipcRenderer.invoke('network-info'),
   generateShareKey: () => ipcRenderer.invoke('generate-share-key'),
   testRemote: (opts) => ipcRenderer.invoke('test-remote', opts),
+  listProviders: () => ipcRenderer.invoke('list-providers'),
   applySharing: () => ipcRenderer.invoke('apply-sharing'),
 
   serverStatus: () => ipcRenderer.invoke('server-status'),

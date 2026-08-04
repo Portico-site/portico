@@ -1,0 +1,489 @@
+<title>Coste de una IA privada para 1.000 empleados</title>
+<style>
+  :root{
+    --paper:#F6F5F2; --card:#FFFFFF; --sunken:#EEEDE8;
+    --ink:#17181A; --ink-mid:#4E5257; --ink-soft:#74787E;
+    --line:#DEDCD5; --line-hard:#C4C1B8;
+    --petrol:#14545C; --petrol-soft:#E2ECEC;
+    --ochre:#8A6014;
+    --good:#3B6B4E; --good-soft:#E4EDE6;
+    --warn:#8A6410; --warn-soft:#F5EBD8;
+    --bad:#8E3E2E;  --bad-soft:#F3E3DE;
+    --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+    --mono:ui-monospace,"Cascadia Mono",Consolas,"SF Mono",monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#141518; --card:#1C1E21; --sunken:#191B1E;
+      --ink:#EDEDEA; --ink-mid:#AFB3B8; --ink-soft:#878B91;
+      --line:#2C2F33; --line-hard:#414549;
+      --petrol:#6FB3B8; --petrol-soft:#16292B;
+      --ochre:#D9AA5C;
+      --good:#7FB894; --good-soft:#16241B;
+      --warn:#D9AE60; --warn-soft:#2A2214;
+      --bad:#D08A78;  --bad-soft:#2A1A16;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#141518; --card:#1C1E21; --sunken:#191B1E;
+    --ink:#EDEDEA; --ink-mid:#AFB3B8; --ink-soft:#878B91;
+    --line:#2C2F33; --line-hard:#414549;
+    --petrol:#6FB3B8; --petrol-soft:#16292B;
+    --ochre:#D9AA5C;
+    --good:#7FB894; --good-soft:#16241B;
+    --warn:#D9AE60; --warn-soft:#2A2214;
+    --bad:#D08A78;  --bad-soft:#2A1A16;
+  }
+  :root[data-theme="light"]{
+    --paper:#F6F5F2; --card:#FFFFFF; --sunken:#EEEDE8;
+    --ink:#17181A; --ink-mid:#4E5257; --ink-soft:#74787E;
+    --line:#DEDCD5; --line-hard:#C4C1B8;
+    --petrol:#14545C; --petrol-soft:#E2ECEC;
+    --ochre:#8A6014;
+    --good:#3B6B4E; --good-soft:#E4EDE6;
+    --warn:#8A6410; --warn-soft:#F5EBD8;
+    --bad:#8E3E2E;  --bad-soft:#F3E3DE;
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans);
+       font-size:16px; line-height:1.65; -webkit-font-smoothing:antialiased}
+  .page{max-width:860px; margin:0 auto; padding:2.5rem 1.5rem 6rem}
+
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+      color:var(--petrol); margin-bottom:.8rem}
+  h1{font-size:clamp(1.9rem,4.6vw,2.7rem); font-weight:800; letter-spacing:-.028em;
+     line-height:1.06; margin:0 0 .7rem; text-wrap:balance}
+  .sub{font-size:1.08rem; color:var(--ink-mid); max-width:62ch; margin:0}
+  .docmeta{display:flex; flex-wrap:wrap; gap:.35rem 1.3rem; margin-top:1.3rem;
+      padding-top:1.1rem; border-top:1px solid var(--line);
+      font-family:var(--mono); font-size:11px; color:var(--ink-soft)}
+
+  h2{font-size:1.42rem; font-weight:750; letter-spacing:-.02em; margin:3.2rem 0 .2rem;
+     text-wrap:balance; line-height:1.2}
+  h2 .sec{font-family:var(--mono); font-size:.72rem; font-weight:500; color:var(--petrol);
+     display:block; letter-spacing:.12em; margin-bottom:.45rem}
+  h3{font-size:1.03rem; font-weight:700; margin:1.9rem 0 .45rem; letter-spacing:-.01em}
+  p{margin:0 0 .9rem; max-width:70ch; color:var(--ink-mid)}
+  p.plain{color:var(--ink)}
+  ul,ol{max-width:70ch; padding-left:1.2rem; margin:0 0 1rem; color:var(--ink-mid)}
+  li{margin-bottom:.4rem}
+  strong{color:var(--ink); font-weight:700}
+  code{font-family:var(--mono); font-size:.85em; background:var(--sunken);
+       padding:.1em .36em; border-radius:4px}
+  a{color:var(--petrol)}
+
+  /* verdict block */
+  .verdict{background:var(--card); border:1px solid var(--line-hard); border-radius:12px;
+      padding:1.4rem 1.5rem; margin:2rem 0 0; box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .verdict h2{margin-top:0}
+  .headline{font-size:1.18rem; font-weight:700; color:var(--ink); max-width:62ch;
+      line-height:1.45; margin:0 0 1rem}
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+      gap:1px; background:var(--line); border:1px solid var(--line);
+      border-radius:9px; overflow:hidden; margin:1.2rem 0}
+  .kpi{background:var(--card); padding:.9rem 1rem}
+  .kpi .k{font-family:var(--mono); font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+      color:var(--ink-soft); display:block; margin-bottom:.3rem}
+  .kpi .v{font-family:var(--mono); font-size:1.32rem; font-weight:600; color:var(--ink);
+      font-variant-numeric:tabular-nums; letter-spacing:-.02em; display:block}
+  .kpi .u{font-size:11.5px; color:var(--ink-soft)}
+
+  /* callouts */
+  .box{border-left:3px solid var(--petrol); background:var(--petrol-soft);
+       padding:.95rem 1.15rem; border-radius:0 9px 9px 0; margin:1.5rem 0; max-width:70ch}
+  .box .tag{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+       display:block; margin-bottom:.35rem; color:var(--petrol); font-weight:600}
+  .box p:last-child{margin-bottom:0}
+  .box p{color:var(--ink-mid)}
+  .box.ok{border-left-color:var(--good); background:var(--good-soft)} .box.ok .tag{color:var(--good)}
+  .box.warn{border-left-color:var(--warn); background:var(--warn-soft)} .box.warn .tag{color:var(--warn)}
+  .box.bad{border-left-color:var(--bad); background:var(--bad-soft)} .box.bad .tag{color:var(--bad)}
+
+  /* tables */
+  .tw{overflow-x:auto; margin:1.2rem 0; border:1px solid var(--line); border-radius:9px;
+      background:var(--card)}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:520px}
+  th,td{text-align:left; padding:.62rem .8rem; border-bottom:1px solid var(--line)}
+  thead th{background:var(--sunken); font-weight:700; color:var(--ink); font-size:12px;
+      letter-spacing:.02em; white-space:nowrap; border-bottom:1px solid var(--line-hard)}
+  tbody tr:last-child td{border-bottom:none}
+  td{color:var(--ink-mid)}
+  td:first-child{color:var(--ink); font-weight:600}
+  .n{font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+  tr.total td{background:var(--sunken); font-weight:700; color:var(--ink);
+      border-top:1px solid var(--line-hard)}
+  .pill{display:inline-block; font-family:var(--mono); font-size:10px; font-weight:600;
+      letter-spacing:.05em; padding:.15rem .45rem; border-radius:4px; white-space:nowrap}
+  .pill.ok{background:var(--good-soft); color:var(--good)}
+  .pill.warn{background:var(--warn-soft); color:var(--warn)}
+  .pill.bad{background:var(--bad-soft); color:var(--bad)}
+
+  /* calculation blocks */
+  .calc{background:var(--sunken); border:1px solid var(--line); border-radius:9px;
+      padding:1rem 1.15rem; margin:1.2rem 0; overflow-x:auto; max-width:70ch}
+  .calc table{min-width:0; font-family:var(--mono); font-size:12.5px}
+  .calc th,.calc td{border-bottom:1px dotted var(--line); padding:.32rem .5rem}
+  .calc thead th{background:none; border-bottom:1px solid var(--line-hard)}
+  .calc tr.total td{background:none; border-top:1px solid var(--line-hard)}
+
+  figcaption{font-size:12px; color:var(--ink-soft); margin-top:.5rem; max-width:70ch}
+
+  footer{margin-top:4rem; padding-top:1.3rem; border-top:1px solid var(--line);
+      font-family:var(--mono); font-size:11px; color:var(--ink-soft); line-height:1.8}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+  @media (max-width:640px){ body{font-size:15.5px} .page{padding:1.8rem 1.1rem 4rem} }
+</style>
+
+<div class="page">
+
+<div class="eyebrow">Estimación de infraestructura · borrador para discusión</div>
+<h1>¿Cuánto cuesta a una empresa de 1.000 empleados tener su propia IA?</h1>
+<p class="sub">Modelos de 100.000 millones de parámetros o más, alojados en servidores propios.
+  Comparado con la nube, con el alquiler descentralizado de cómputo, y con simplemente pagar una API.</p>
+<div class="docmeta">
+  <span>1.000 empleados</span><span>modelos de 8B a 671B</span>
+  <span>horizonte 3 años</span><span>cifras en EUR aprox.</span>
+</div>
+
+<!-- ================= VEREDICTO ================= -->
+<div class="verdict">
+  <h2 style="font-size:1.1rem"><span class="sec">Conclusión</span></h2>
+  <p class="headline">Con un uso normal de oficina, alojar tu propia IA cuesta entre tres y cuatro
+    veces más que pagar una API comercial. La decisión no se justifica por dinero — se justifica
+    cuando los datos no pueden salir de la empresa.</p>
+
+  <div class="kpis">
+    <div class="kpi"><span class="k">API comercial</span><span class="v">1.900</span><span class="u">€/mes · 3 años: 68.000 €</span></div>
+    <div class="kpi"><span class="k">Servidor propio</span><span class="v">6.350</span><span class="u">€/mes · 3 años: 229.000 €</span></div>
+    <div class="kpi"><span class="k">Nube reservada</span><span class="v">8.900</span><span class="u">€/mes · 3 años: 320.000 €</span></div>
+    <div class="kpi"><span class="k">Por empleado</span><span class="v">6,35</span><span class="u">€/mes (servidor propio)</span></div>
+  </div>
+
+  <p>Dicho de otro modo: <strong>6,35 € al mes por empleado</strong> es un coste asumible para casi
+    cualquier empresa de este tamaño. El problema no es que sea caro en términos absolutos — es que
+    la alternativa es más barata y no requiere contratar a nadie que la mantenga.</p>
+  <p style="margin-bottom:0">El punto en que el servidor propio gana es el <strong>volumen alto y
+    sostenido</strong>: a partir de aproximadamente <strong>4 veces</strong> el uso que aquí se
+    supone, la economía se invierte.</p>
+</div>
+
+<!-- ================= SUPUESTOS ================= -->
+<h2><span class="sec">01</span>Supuestos, porque todo depende de ellos</h2>
+<p>Tu petición dejaba abiertas varias variables. Las fijo aquí de forma explícita para que puedas
+  discutirlas o cambiarlas — cada una mueve el resultado mucho más que la elección de hardware.</p>
+
+<div class="tw">
+<table>
+  <thead><tr><th>Variable</th><th class="n">Supuesto</th><th>Por qué</th></tr></thead>
+  <tbody>
+    <tr><td>Empleados</td><td class="n">1.000</td><td>Dado.</td></tr>
+    <tr><td>Adoptan de verdad</td><td class="n">40 %  ·  400</td><td>Adopción típica el primer año. Casi nunca es el 100 %.</td></tr>
+    <tr><td>Mensajes por persona/día</td><td class="n">15</td><td>Uso de oficina, no uso intensivo.</td></tr>
+    <tr><td>Tokens de entrada / mensaje</td><td class="n">1.500</td><td>Incluye el historial reenviado en cada turno.</td></tr>
+    <tr><td>Tokens de salida / mensaje</td><td class="n">400</td><td>Una respuesta de párrafo o dos.</td></tr>
+    <tr><td>Concurrencia en punta</td><td class="n">25–35</td><td>Personas escribiendo <em>a la vez</em>, no conectadas.</td></tr>
+    <tr><td>Electricidad</td><td class="n">0,20 €/kWh</td><td>Orden de magnitud para España, industrial.</td></tr>
+    <tr><td>Administración</td><td class="n">0,25 FTE</td><td>Alguien tiene que mantenerlo. Es un coste real.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box warn">
+  <span class="tag">Fiabilidad de las cifras</span>
+  <p>No tengo acceso a precios en vivo. Las cifras de hardware son <strong>rangos aproximados</strong>
+    y el mercado de GPUs se mueve con violencia. Los precios de API cambian varias veces al año, casi
+    siempre a la baja. Trata este documento como un modelo con la aritmética a la vista, no como un
+    presupuesto. Verifica cualquier cifra antes de firmar algo.</p>
+</div>
+
+<!-- ================= DEMANDA ================= -->
+<h2><span class="sec">02</span>Cuánta capacidad hace falta realmente</h2>
+<p class="plain">Casi todo el mundo dimensiona esto mal, porque razona con el número de empleados en
+  lugar de con tokens por segundo. La cadena es ésta:</p>
+
+<div class="calc">
+<table>
+  <tbody>
+    <tr><td>Usuarios activos</td><td class="n">400</td><td></td></tr>
+    <tr><td>× mensajes/día</td><td class="n">15</td><td>= 6.000 mensajes/día</td></tr>
+    <tr><td>× tokens de salida</td><td class="n">400</td><td>= 2,4 M tokens de salida/día</td></tr>
+    <tr><td>× tokens de entrada</td><td class="n">1.500</td><td>= 9,0 M tokens de entrada/día</td></tr>
+    <tr><td>60 % del tráfico en 4 h punta</td><td class="n">—</td><td>= 2,4 M × 0,6 ÷ 14.400 s</td></tr>
+    <tr class="total"><td>Capacidad de generación necesaria</td><td class="n">≈ 200</td><td>tokens/segundo sostenidos</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Doscientos tokens por segundo <em>agregados</em>. Esa es la cifra que hay que comprar. Y aquí
+  aparece la diferencia técnica más importante del documento:</p>
+
+<div class="box bad">
+  <span class="tag">Portico no sirve a esta escala</span>
+  <p>El motor compartido de Portico funciona — lo verificamos en red — pero está construido sobre
+    <strong>llama.cpp</strong>, optimizado para uno o pocos usuarios. Atiende las peticiones casi
+    en serie.</p>
+  <p>Para 1.000 empleados se necesita <strong>procesamiento por lotes continuo</strong>
+    (vLLM, TensorRT-LLM, SGLang), que agrupa peticiones simultáneas en la misma pasada por la GPU.
+    La diferencia de rendimiento agregado no es del 20 % — es de <strong>un orden de magnitud</strong>.</p>
+  <p>Además Portico no tiene cuentas, ni cuotas, ni registro de uso, ni cifrado en tránsito. Serviría
+    de <em>cliente</em> contra un servidor serio. No serviría de servidor.</p>
+</div>
+
+<!-- ================= MODELOS ================= -->
+<h2><span class="sec">03</span>Qué modelo, según los parámetros</h2>
+<p>Pediste el coste por escala de parámetros y eligiendo los más eficientes. La respuesta corta es
+  que <strong>el tamaño total no es lo que determina el coste de servir</strong> — lo determinan los
+  parámetros <em>activos</em>.</p>
+
+<h3>La distinción que cambia la economía</h3>
+<p>Un modelo denso usa todos sus parámetros en cada palabra. Un modelo de <strong>mezcla de
+  expertos</strong> (MoE) carga todo en memoria pero solo activa una fracción por palabra. Eso
+  significa:</p>
+<ul>
+  <li>La <strong>memoria</strong> —y por tanto cuántas GPUs compras— sigue al total.</li>
+  <li>El <strong>cómputo</strong> —y por tanto cuántos usuarios atiendes con ellas— sigue al activo.</li>
+</ul>
+<p class="plain">A escala de empresa esto es decisivo: <strong>un MoE grande sirve a muchos más
+  usuarios por GPU que un modelo denso de calidad parecida.</strong></p>
+
+<div class="tw">
+<table>
+  <thead><tr>
+    <th>Escala</th><th class="n">Total</th><th class="n">Activo</th><th class="n">VRAM (Q4)</th>
+    <th>GPUs mínimas</th><th>Veredicto a escala</th>
+  </tr></thead>
+  <tbody>
+    <tr><td>Llama 3.1 8B</td><td class="n">8 B</td><td class="n">8 B</td><td class="n">~5 GB</td>
+        <td>1 × L40S</td><td><span class="pill ok">Excelente</span> para resumir, redactar, clasificar</td></tr>
+    <tr><td>Qwen3 30B-A3B</td><td class="n">30 B</td><td class="n">3 B</td><td class="n">~18 GB</td>
+        <td>1 × A100 80</td><td><span class="pill ok">La mejor relación</span> calidad/coste del cuadro</td></tr>
+    <tr><td>Llama 3.3 70B</td><td class="n">70 B</td><td class="n">70 B</td><td class="n">~43 GB</td>
+        <td>2 × H100</td><td><span class="pill warn">Sólido</span> pero caro de servir: todo activo</td></tr>
+    <tr><td>Mixtral 8x22B</td><td class="n">141 B</td><td class="n">39 B</td><td class="n">~85 GB</td>
+        <td>2 × H100</td><td><span class="pill ok">Buen punto</span> de entrada a los 100B+</td></tr>
+    <tr><td>DeepSeek-V3</td><td class="n">671 B</td><td class="n">37 B</td><td class="n">~400 GB</td>
+        <td>8 × H100</td><td><span class="pill warn">Calidad alta</span>, coste de memoria enorme</td></tr>
+    <tr><td>Llama 3.1 405B</td><td class="n">405 B</td><td class="n">405 B</td><td class="n">~230 GB</td>
+        <td>4–8 × H100</td><td><span class="pill bad">Difícil de justificar</span>: denso y lento</td></tr>
+  </tbody>
+</table>
+</div>
+
+<figcaption>La VRAM incluye solo los pesos. Añade entre 15 y 40 GB para el historial de las
+  conversaciones simultáneas, según cuántas y cuán largas sean.</figcaption>
+
+<div class="box ok">
+  <span class="tag">Recomendación técnica</span>
+  <p>Si el requisito es «100.000 millones de parámetros o más», la elección eficiente es
+    <strong>Mixtral 8x22B</strong> (141 B totales, 39 B activos) sobre <strong>2 × H100</strong>.
+    Cumple el requisito de escala, cabe en dos tarjetas y sirve a muchos más usuarios que un denso
+    de 70 B en el mismo hardware.</p>
+  <p>Pero la elección <em>honesta</em> es servir <strong>dos modelos</strong>: uno de 8 B para el
+    80 % de las peticiones —resúmenes, correos, preguntas simples— y el grande solo para lo que lo
+    necesita. Eso reduce el hardware necesario aproximadamente a la mitad, y es lo que hace
+    cualquier despliegue serio.</p>
+</div>
+
+<!-- ================= HARDWARE ================= -->
+<h2><span class="sec">04</span>Coste del servidor propio</h2>
+<p>Dimensionado para Mixtral 8x22B con vLLM, más un modelo de 8 B en paralelo, cubriendo los
+  200 tokens/segundo con margen.</p>
+
+<h3>Inversión inicial</h3>
+<div class="tw">
+<table>
+  <thead><tr><th>Concepto</th><th class="n">Unidades</th><th class="n">Unitario</th><th class="n">Total</th></tr></thead>
+  <tbody>
+    <tr><td>NVIDIA H100 80 GB (PCIe)</td><td class="n">4</td><td class="n">27.000 €</td><td class="n">108.000 €</td></tr>
+    <tr><td>Servidor: CPU, 512 GB RAM, chasis, fuentes</td><td class="n">1</td><td class="n">28.000 €</td><td class="n">28.000 €</td></tr>
+    <tr><td>Almacenamiento NVMe (8 TB, modelos)</td><td class="n">1</td><td class="n">2.500 €</td><td class="n">2.500 €</td></tr>
+    <tr><td>Red, SAI, rack, instalación</td><td class="n">1</td><td class="n">9.000 €</td><td class="n">9.000 €</td></tr>
+    <tr><td>Redundancia (segundo nodo, mínimo viable)</td><td class="n">1</td><td class="n">—</td><td class="n">no incluida</td></tr>
+    <tr class="total"><td>Inversión</td><td class="n"></td><td class="n"></td><td class="n">147.500 €</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Coste recurrente anual</h3>
+<div class="tw">
+<table>
+  <thead><tr><th>Concepto</th><th class="n">Cálculo</th><th class="n">Anual</th></tr></thead>
+  <tbody>
+    <tr><td>Electricidad</td><td class="n">3,5 kW × 24/7 × 0,20 €</td><td class="n">6.130 €</td></tr>
+    <tr><td>Refrigeración</td><td class="n">+30 % del consumo</td><td class="n">1.840 €</td></tr>
+    <tr><td>Administración</td><td class="n">0,25 FTE × 80.000 €</td><td class="n">20.000 €</td></tr>
+    <tr><td>Soporte y garantía extendida</td><td class="n">~4 % del capex</td><td class="n">5.900 €</td></tr>
+    <tr class="total"><td>Recurrente</td><td class="n"></td><td class="n">33.870 €</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="calc">
+<table>
+  <tbody>
+    <tr><td>Inversión</td><td class="n">147.500 €</td></tr>
+    <tr><td>Recurrente × 3 años</td><td class="n">101.610 €</td></tr>
+    <tr class="total"><td>Coste total a 3 años</td><td class="n">249.110 €</td></tr>
+    <tr><td>Por mes</td><td class="n">6.920 €</td></tr>
+    <tr><td>Por empleado y mes</td><td class="n">6,92 €</td></tr>
+    <tr><td>Por usuario activo y mes</td><td class="n">17,30 €</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Nótese la línea que no está: <strong>redundancia</strong>. Con un solo nodo, una avería de GPU
+  deja a 400 personas sin servicio hasta que llegue el recambio. Un segundo nodo casi duplica la
+  inversión. Cualquier despliegue real lo necesita, y casi ningún presupuesto inicial lo incluye.</p>
+
+<!-- ================= ALTERNATIVAS ================= -->
+<h2><span class="sec">05</span>Las cuatro formas de comprar el cómputo</h2>
+
+<div class="tw">
+<table>
+  <thead><tr>
+    <th>Vía</th><th class="n">3 años</th><th class="n">€/mes</th><th>Ventaja real</th><th>Coste oculto</th>
+  </tr></thead>
+  <tbody>
+    <tr><td>API comercial</td><td class="n">68.000 €</td><td class="n">1.890 €</td>
+        <td>Cero capex, cero administración, siempre el mejor modelo</td>
+        <td>Tus datos salen de la empresa</td></tr>
+    <tr><td>Servidor propio</td><td class="n">249.000 €</td><td class="n">6.920 €</td>
+        <td>Los datos no se mueven; coste fijo y previsible</td>
+        <td>Administración, obsolescencia, redundancia</td></tr>
+    <tr><td>Nube reservada (H100)</td><td class="n">320.000 €</td><td class="n">8.900 €</td>
+        <td>Elástico, sin capex, con contrato y SLA</td>
+        <td>El más caro a plazo largo; tráfico de salida</td></tr>
+    <tr><td>Cómputo descentralizado</td><td class="n">~110.000 €</td><td class="n">~3.000 €</td>
+        <td>Entre 50 % y 70 % más barato que la nube</td>
+        <td>Ver la sección siguiente</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Dónde está el punto de equilibrio</h3>
+<p>El servidor propio empieza a ganar cuando el volumen sube, porque su coste es casi fijo mientras
+  el de la API es proporcional al uso:</p>
+
+<div class="calc">
+<table>
+  <thead><tr><th>Uso</th><th class="n">API/mes</th><th class="n">Propio/mes</th><th>Gana</th></tr></thead>
+  <tbody>
+    <tr><td>El supuesto de este documento</td><td class="n">1.890 €</td><td class="n">6.920 €</td><td>API, con holgura</td></tr>
+    <tr><td>× 2 (adopción del 80 %)</td><td class="n">3.780 €</td><td class="n">6.920 €</td><td>API</td></tr>
+    <tr><td>× 4 (uso intensivo real)</td><td class="n">7.560 €</td><td class="n">6.920 €</td><td>Empate</td></tr>
+    <tr class="total"><td>× 10 (procesado masivo de documentos)</td><td class="n">18.900 €</td><td class="n">~8.500 €</td><td>Propio, claramente</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Esa tabla es el verdadero resultado del análisis. <strong>La pregunta no es «¿cuánto cuesta un
+  servidor?» sino «¿cuánto vamos a usarlo?»</strong> — y la respuesta honesta casi siempre es
+  menos de lo que se estima al principio.</p>
+
+<!-- ================= BLOCKCHAIN ================= -->
+<h2><span class="sec">06</span>Comprar cómputo con blockchain</h2>
+<p>Preguntaste explícitamente por esto, así que vale la pena tratarlo en serio y no despacharlo.</p>
+
+<h3>Qué es</h3>
+<p>Existen mercados descentralizados de GPU —Akash, io.net, Render, Golem y otros— donde
+  particulares y centros de datos pequeños alquilan capacidad ociosa. Se coordinan mediante una
+  cadena de bloques que gestiona el emparejamiento y el pago, normalmente en el token de la propia
+  red. Los precios son reales: con frecuencia entre un <strong>50 % y un 70 % por debajo</strong>
+  del precio de lista de los grandes proveedores.</p>
+
+<h3>El problema que lo invalida en este caso concreto</h3>
+<div class="box bad">
+  <span class="tag">Contradicción de fondo</span>
+  <p>Toda esta conversación parte de una premisa: <strong>alojar tu propia IA porque los datos no
+    pueden salir de la empresa.</strong></p>
+  <p>El cómputo descentralizado significa ejecutar el modelo —y por tanto <em>tus datos</em>— en la
+    máquina de un desconocido, en una jurisdicción que no eliges, sin contrato que se pueda hacer
+    cumplir y sin nadie identificable a quien reclamar.</p>
+  <p>No es que sea menos seguro que la nube. Es que <strong>elimina la única razón por la que
+    estabas considerando no usar una API</strong>. Si aceptas que los datos se procesen en
+    servidores ajenos, entonces la API comercial es más barata, más rápida y viene con un contrato.</p>
+</div>
+
+<h3>Los obstáculos prácticos, aparte de ese</h3>
+<div class="tw">
+<table>
+  <thead><tr><th>Obstáculo</th><th>Consecuencia para una empresa de 1.000 personas</th></tr></thead>
+  <tbody>
+    <tr><td>Cumplimiento</td><td>El RGPD exige un contrato de tratamiento de datos con cada procesador. Con operadores anónimos es, en la práctica, imposible.</td></tr>
+    <tr><td>Sin SLA</td><td>Nadie garantiza disponibilidad. Los nodos aparecen y desaparecen.</td></tr>
+    <tr><td>Sin soporte</td><td>Cuando algo falla a las 9 de la mañana, no hay a quién llamar.</td></tr>
+    <tr><td>Pago en tokens</td><td>Introduce un activo volátil en la tesorería, con implicaciones contables y fiscales. Requiere criterio financiero propio: no es algo que yo deba aconsejarte.</td></tr>
+    <tr><td>Ahorro exagerado</td><td>El descuento se estrecha al sumar transferencia de datos, tiempo ocioso reservado y el trabajo de ingeniería para tolerar nodos poco fiables.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Dónde sí tiene sentido</h3>
+<p>No es una tecnología inútil — está mal encajada <em>en este caso</em>. Encaja bien cuando el dato
+  no es sensible y el precio manda:</p>
+<ul>
+  <li>Inferencia por lotes sobre información pública o ya publicada.</li>
+  <li>Experimentación y prototipado, donde una caída no cuesta nada.</li>
+  <li>Entrenamiento o ajuste con datos sintéticos o abiertos.</li>
+  <li>Cargas tolerantes a fallos, donde reintentar es aceptable.</li>
+</ul>
+<div class="box">
+  <span class="tag">Veredicto</span>
+  <p>Para el chat interno de 1.000 empleados: <strong>no</strong>. La contradicción con el motivo
+    de privacidad es insalvable y el cumplimiento normativo no se sostiene. Para trabajo por lotes
+    sobre datos públicos: <strong>merece una prueba</strong>, con expectativas modestas sobre el
+    ahorro final.</p>
+</div>
+
+<!-- ================= RUTA ================= -->
+<h2><span class="sec">07</span>Lo que yo haría</h2>
+<p>El error más caro aquí no es elegir mal el hardware: es <strong>comprarlo antes de saber si se
+  va a usar</strong>. Una ruta que reduce ese riesgo casi a cero:</p>
+
+<div class="tw">
+<table>
+  <thead><tr><th>Fase</th><th class="n">Duración</th><th class="n">Coste</th><th>Qué se decide</th></tr></thead>
+  <tbody>
+    <tr><td>1 · Prueba de valor</td><td class="n">1 mes</td><td class="n">&lt; 500 €</td>
+        <td>Alquila 2 × H100 por horas. Diez personas usan Mixtral 8x22B de verdad. ¿Resuelve algo que importe?</td></tr>
+    <tr><td>2 · Piloto medido</td><td class="n">3 meses</td><td class="n">~8.000 €</td>
+        <td>Cincuenta personas, sobre nube reservada. <strong>Mide tokens reales.</strong> Aquí sale el número que falta.</td></tr>
+    <tr><td>3 · Decisión</td><td class="n">—</td><td class="n">—</td>
+        <td>Con el consumo real medido, la tabla de equilibrio de la sección 05 se responde sola.</td></tr>
+    <tr><td>4 · Compra</td><td class="n">—</td><td class="n">147.500 €</td>
+        <td>Solo si el volumen medido supera el punto de equilibrio, o si el requisito legal lo obliga de todos modos.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Las fases 1 y 2 cuestan menos del <strong>6 %</strong> de la inversión y eliminan la mayor parte
+  de la incertidumbre. Casi todos los despliegues fallidos que se cuentan por ahí se saltaron la
+  fase 2.</p>
+
+<!-- ================= AFINAR ================= -->
+<h2><span class="sec">08</span>Qué afinaría esta estimación</h2>
+<p>Pediste que mejorase la pregunta, y esto es lo que le falta. Cada dato de abajo mueve el
+  resultado más que cualquier elección de GPU:</p>
+<ul>
+  <li><strong>¿Por qué autoalojar?</strong> Si la respuesta es una obligación legal concreta
+    (sanidad, banca, secreto profesional), el análisis de coste sobra: hay que hacerlo y solo queda
+    optimizarlo. Si la respuesta es «parece más barato», los números dicen que no lo es.</li>
+  <li><strong>¿Para qué tareas?</strong> Redactar correos y resumir actas se hace bien con 8 B.
+    Análisis jurídico o de código exige el modelo grande. La mezcla decide el hardware.</li>
+  <li><strong>¿Cuántas personas de verdad?</strong> La diferencia entre 200 y 600 usuarios activos
+    es la diferencia entre dos GPUs y ocho.</li>
+  <li><strong>¿Se necesita alta disponibilidad?</strong> Duplica la inversión. Es la partida que
+    más se olvida.</li>
+  <li><strong>¿Ya se paga alguna API?</strong> Esa factura es el mejor dato de consumo real que
+    existe, y hace innecesaria la mitad de este modelo.</li>
+</ul>
+
+<footer>
+  Estimación técnica, no asesoramiento financiero ni fiscal · precios de hardware y de API
+  aproximados y sujetos a variación rápida · elaborado como modelo con la aritmética visible para
+  que los supuestos puedan sustituirse · v0.20.0
+</footer>
+
+</div>

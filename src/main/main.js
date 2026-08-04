@@ -76,8 +76,10 @@ function defaultSettings() {
 
     // Client mode: use another machine's engine instead of running one here.
     remoteMode: false,
-    remoteUrl: '',         // e.g. http://192.168.1.40:8033
+    remoteProvider: 'lan', // lan | redpill | openrouter | custom — see engine-client
+    remoteUrl: '',         // e.g. http://192.168.1.40:8033, or a provider's API base
     remoteKey: '',
+    remoteModelName: '',   // hosted providers require naming the model; llama.cpp does not
   };
 }
 
@@ -612,8 +614,10 @@ function registerIpc() {
       shareKey: s.shareKey || '',
       parallelSlots: s.parallelSlots || 1,
       remoteMode: !!s.remoteMode,
+      remoteProvider: s.remoteProvider || 'lan',
       remoteUrl: s.remoteUrl || '',
       remoteKey: s.remoteKey || '',
+      remoteModelName: s.remoteModelName || '',
       port: s.port,
       addresses: engineClient.localAddresses(),
     };
@@ -624,7 +628,17 @@ function registerIpc() {
     store.saveSettings({ shareKey: key });
     return key;
   });
-  ipcMain.handle('test-remote', (e, { url, key }) => engineClient.probe({ url, key }));
+  ipcMain.handle('test-remote', (e, { url, key, provider, model }) => {
+    const p = engineClient.PROVIDERS[provider] || engineClient.PROVIDERS.lan;
+    return engineClient.probe({ url: url || p.base, key, kind: p.kind, model });
+  });
+  // the provider list, so the renderer never hard-codes an address
+  ipcMain.handle('list-providers', () => Object.entries(engineClient.PROVIDERS)
+    .map(([id, p]) => ({
+      id, label: p.label, base: p.base, needsModel: !!p.needsModel,
+      offMachine: !!p.offMachine, attested: !!p.attested,
+      signup: p.signup || '', note: p.note || '',
+    })));
   // Turning sharing on or off changes the bind address, which only takes effect when
   // the engine (re)starts — so restart it if a model is currently loaded.
   ipcMain.handle('apply-sharing', async () => {

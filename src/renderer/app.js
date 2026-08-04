@@ -1208,20 +1208,36 @@ async function renderSettingsView() {
 
     <label class="check-row">
       <input id="s-remote" type="checkbox" ${s.remoteMode ? 'checked' : ''} />
-      <span>Use another computer's engine <em>(this machine stops running its own model)</em></span>
+      <span>Run the model somewhere else <em>(this machine stops running its own)</em></span>
     </label>
     <div id="s-remote-box" class="net-box" ${s.remoteMode ? '' : 'hidden'}>
-      <label class="field"><span>Host address</span>
+      <label class="field"><span>Where</span>
+        <select id="s-provider"></select>
+        <span class="hint" id="s-provider-note"></span>
+      </label>
+      <label class="field"><span id="s-url-label">Host address</span>
         <input id="s-remoteurl" type="text" placeholder="192.168.1.40:8033"
                value="${esc(s.remoteUrl || '')}" spellcheck="false" />
       </label>
-      <label class="field"><span>Access key</span>
-        <input id="s-remotekey" type="text" placeholder="paste the key from the host"
+      <label class="field" id="s-model-field" hidden><span>Model name</span>
+        <input id="s-remotemodel" type="text" placeholder="e.g. phala/deepseek-r1-70b"
+               value="${esc(s.remoteModelName || '')}" spellcheck="false" />
+        <span class="hint">A hosted service runs many models, so it needs to be told which one.</span>
+      </label>
+      <label class="field"><span id="s-key-label">Access key</span>
+        <input id="s-remotekey" type="password" placeholder="paste the key from the host"
                value="${esc(s.remoteKey || '')}" spellcheck="false" />
       </label>
       <div class="field-row">
         <button class="btn" id="s-remotetest">Test connection</button>
         <span class="hint" id="s-remotestatus"></span>
+      </div>
+      <div class="net-warn" id="s-offmachine" hidden>
+        <strong>This sends what you type to another company.</strong> Portico's promise that
+        nothing leaves your computer does not apply while this is on — the app will say so under
+        the message box. Your chats and files still stay here; only the question and the answer
+        travel. You pay the provider directly on their own site; Portico never handles a wallet,
+        a card or a private key.
       </div>
     </div>
 
@@ -1351,8 +1367,10 @@ async function renderSettingsView() {
       imageSteps: parseInt($('s-imgsteps').value, 10),
       imageQuant: $('s-imgquant').value,
       remoteMode: $('s-remote').checked,
+      remoteProvider: $('s-provider').value,
       remoteUrl: $('s-remoteurl').value.trim(),
       remoteKey: $('s-remotekey').value.trim(),
+      remoteModelName: $('s-remotemodel').value.trim(),
       shareEngine: $('s-share').checked,
       parallelSlots: parseInt($('s-slots').value, 10) || 1,
     });
@@ -1444,17 +1462,46 @@ function wireSharedEngine() {
     toast('New key — everyone connecting will need to update it');
   });
 
+  // the provider list drives the rest of the form, so nothing is hard-coded here
+  api.listProviders().then((list) => {
+    S.providers = list;
+    const sel = $('s-provider');
+    if (!sel) return;
+    sel.innerHTML = list.map((p) =>
+      `<option value="${esc(p.id)}" ${(s.remoteProvider || 'lan') === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('');
+    const sync = () => {
+      const p = list.find((x) => x.id === sel.value) || list[0];
+      $('s-provider-note').textContent = p.note || '';
+      $('s-model-field').hidden = !p.needsModel;
+      $('s-offmachine').hidden = !p.offMachine;
+      $('s-url-label').textContent = p.offMachine ? 'API address' : 'Host address';
+      $('s-key-label').textContent = p.offMachine ? 'API key' : 'Access key';
+      const url = $('s-remoteurl');
+      url.placeholder = p.base || '192.168.1.40:8033';
+      // a preset knows its own address; leave a hand-typed one alone
+      if (p.base && !url.value) url.value = p.base;
+      if (!p.offMachine && list.some((x) => x.base === url.value)) url.value = '';
+    };
+    sel.addEventListener('change', sync);
+    sync();
+  });
+
   $('s-remotetest').addEventListener('click', async () => {
     const st = $('s-remotestatus');
     st.textContent = 'Checking…';
     const r = await api.testRemote({
       url: $('s-remoteurl').value.trim(),
       key: $('s-remotekey').value.trim(),
+      provider: $('s-provider').value,
     });
     st.textContent = r.ok
-      ? `Connected${r.model ? ' — host is running ' + r.model : ''}`
+      ? `Connected${r.model ? ' — ' + r.model : ''}`
       : r.error;
     st.style.color = r.ok ? 'var(--ok, #6a9955)' : 'var(--danger, #d08770)';
+    // show what may be typed in the model field
+    if (r.ok && r.models && r.models.length && !$('s-remotemodel').value) {
+      $('s-remotemodel').placeholder = 'e.g. ' + r.models[0];
+    }
   });
 
   // show the addresses other machines would use to reach this one
@@ -1512,12 +1559,28 @@ function updateSearchButton() {
   btn.title = on
     ? 'Web search: ON — your message is sent to a search engine'
     : 'Web search: off — everything stays on your PC';
-  $('input').placeholder = on ? 'Ask anything — Portico will search the web…' : 'Message your local model…';
-  // the privacy line must stay truthful: search sends the query off the machine
-  $('composer-hint').innerHTML = on
-    ? 'Web search on · your question goes to a search engine — the model still runs locally'
-    : 'Runs 100% locally · nothing leaves your PC';
-  $('composer-hint').classList.toggle('warn', on);
+  // The line under the composer is a promise, so it has to track what is actually
+  // true. Two separate things can send your words off this machine — web search,
+  // and running the model at a hosted provider — and the hosted case is the more
+  // serious of the two, so it wins the message.
+  const provider = (S.providers || []).find((p) => p.id === (S.settings && S.settings.remoteProvider));
+  const offMachine = !!(S.settings && S.settings.remoteMode && provider && provider.offMachine);
+
+  $('input').placeholder = offMachine ? 'Message the hosted model…'
+    : on ? 'Ask anything — Portico will search the web…'
+    : 'Message your local model…';
+
+  const hint = $('composer-hint');
+  if (offMachine) {
+    const who = provider.label.split('—')[0].trim();
+    hint.innerHTML = `Model runs at ${esc(who)} · what you type leaves this computer`
+      + (on ? ' · web search on' : '');
+  } else if (on) {
+    hint.innerHTML = 'Web search on · your question goes to a search engine — the model still runs locally';
+  } else {
+    hint.innerHTML = 'Runs 100% locally · nothing leaves your PC';
+  }
+  hint.classList.toggle('warn', on || offMachine);
 }
 
 async function toggleSearch() {
@@ -2590,6 +2653,10 @@ async function init() {
   trackWindowControls();
 
   S.settings = await api.getSettings();
+  // Needed before the first paint: the composer's privacy line depends on knowing
+  // whether the chosen provider is off this machine. Loading it lazily would show
+  // "nothing leaves your PC" on launch while a hosted model was selected.
+  S.providers = await api.listProviders();
   applyTheme(S.settings.theme || 'dark');   // the stored theme wins over the cached one
   S.server = await api.serverStatus();
   S.chats = await api.listChats();

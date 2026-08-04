@@ -10,23 +10,85 @@ const { URL } = require('url');
 // the access key never enters the page, and the renderer's CSP can stay locked to
 // loopback instead of being widened to allow arbitrary hosts.
 
-// Where the engine lives right now, given the user's settings.
-function endpoint(settings) {
-  if (settings.remoteMode && settings.remoteUrl) {
-    return { base: normalizeUrl(settings.remoteUrl), key: settings.remoteKey || '', remote: true };
-  }
-  return { base: `http://127.0.0.1:${settings.port}`, key: settings.shareKey || '', remote: false };
+// Places an engine can live. The only ones that are not your own hardware are
+// marked `offMachine`, because that changes what Portico is allowed to promise.
+//
+// Payment is deliberately NOT handled here. You buy credit on the provider's own
+// site and paste the key it gives you — Portico never touches a wallet, a private
+// key or a card. A chat client has no business holding those.
+const PROVIDERS = {
+  lan: {
+    label: 'Another computer on my network',
+    kind: 'llamacpp', base: '', needsModel: false, offMachine: false,
+  },
+  redpill: {
+    label: 'RedPill — GPU inside a secure enclave',
+    kind: 'openai', base: 'https://api.red-pill.ai/v1', needsModel: true, offMachine: true,
+    attested: true, signup: 'https://red-pill.ai',
+    note: 'Runs on H100/H200 hardware in confidential mode, and can prove it cryptographically.',
+  },
+  openrouter: {
+    label: 'OpenRouter — many models, one key',
+    kind: 'openai', base: 'https://openrouter.ai/api/v1', needsModel: true, offMachine: true,
+    signup: 'https://openrouter.ai',
+    note: 'A broker in front of many providers. Includes some enclave-backed models.',
+  },
+  custom: {
+    label: 'Any other OpenAI-compatible service',
+    kind: 'openai', base: '', needsModel: true, offMachine: true,
+  },
+};
+
+function providerOf(settings) {
+  return PROVIDERS[settings && settings.remoteProvider] || PROVIDERS.lan;
 }
 
-// People type "192.168.1.40:8033" or "192.168.1.40" — accept both and fill in the rest.
+// Where the engine lives right now, given the user's settings.
+function endpoint(settings) {
+  if (settings.remoteMode) {
+    const p = providerOf(settings);
+    const base = normalizeUrl(settings.remoteUrl || p.base);
+    if (base) {
+      return {
+        base, key: settings.remoteKey || '', remote: true,
+        kind: p.kind, model: p.needsModel ? (settings.remoteModelName || '') : '',
+        offMachine: !!p.offMachine,
+      };
+    }
+  }
+  return {
+    base: `http://127.0.0.1:${settings.port}`, key: settings.shareKey || '',
+    remote: false, kind: 'llamacpp', model: '', offMachine: false,
+  };
+}
+
+// Two very different things end up here.
+//
+//   a colleague's machine   192.168.1.40:8033          -> http, add the engine port
+//   a hosted provider       https://x.ai/api/v1        -> https, and the path MATTERS
+//
+// The path used to be discarded (URL.origin), which quietly sent every request to
+// /v1/chat/completions at the domain root — a 404 for any provider that serves its
+// API under a prefix. Local addresses keep the old behaviour exactly.
 function normalizeUrl(raw, defaultPort = 8033) {
   let s = String(raw || '').trim().replace(/\/+$/, '');
   if (!s) return '';
-  if (!/^https?:\/\//i.test(s)) s = 'http://' + s;
+
+  const hasScheme = /^https?:\/\//i.test(s);
+  const bare = s.replace(/^https?:\/\//i, '');
+  const host = bare.split('/')[0].split(':')[0];
+  // an address on your own network, versus something on the internet
+  const isLocal = /^(localhost|127\.|0\.0\.0\.0|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(host)
+    || /\.local$/i.test(host);
+
+  if (!hasScheme) s = (isLocal ? 'http://' : 'https://') + s;
+
   try {
     const u = new URL(s);
-    if (!u.port && u.protocol === 'http:') u.port = String(defaultPort);
-    return u.origin;
+    // the engine port is only a sensible default for a machine on your network
+    if (!u.port && u.protocol === 'http:' && isLocal) u.port = String(defaultPort);
+    const path = u.pathname.replace(/\/+$/, '');
+    return u.origin + (path === '/' ? '' : path);
   } catch { return ''; }
 }
 
@@ -72,9 +134,14 @@ function request(urlStr, { method = 'GET', key = '', body = null, timeout = 1500
 
 // Is there a working engine at this address, and what is it serving?
 // Used by the "Test connection" button and by client-mode status polling.
-async function probe({ url, key }) {
+//
+// `kind` decides how to ask. llama.cpp has /health and /props; a hosted service has
+// neither, and answers /models instead. Asking the wrong one reports a healthy
+// endpoint as broken.
+async function probe({ url, key, kind = 'llamacpp', model = '' }) {
   const base = normalizeUrl(url);
   if (!base) return { ok: false, error: 'That address does not look right.' };
+  if (kind === 'openai') return probeOpenAI(base, key, model);
   try {
     // Reachability first. /health is deliberately NOT behind the access key in
     // llama.cpp, so it proves the host is there but says nothing about the key.
@@ -95,14 +162,16 @@ async function probe({ url, key }) {
     if (p.status !== 200) {
       return { ok: false, error: `The host answered with HTTP ${p.status}.` };
     }
-    let model = null;
+    // named apart from the `model` parameter, which is only meaningful for hosted
+    // providers — llama.cpp reports whatever it happens to have loaded
+    let loaded = null;
     let slots = null;
     try {
       const j = JSON.parse(p.body);
-      if (j.model_path) model = String(j.model_path).split(/[\\/]/).pop();
+      if (j.model_path) loaded = String(j.model_path).split(/[\\/]/).pop();
       if (j.total_slots) slots = j.total_slots;
     } catch { /* the name is a nicety; a 200 already proved the key */ }
-    return { ok: true, model, slots, base };
+    return { ok: true, model: loaded, slots, base };
   } catch (e) {
     const msg = /ECONNREFUSED/.test(e.message) ? 'Nothing is answering at that address. Is Portico sharing on the host?'
       : /EHOSTUNREACH|ENETUNREACH/.test(e.message) ? 'That machine cannot be reached from this network.'
@@ -112,10 +181,72 @@ async function probe({ url, key }) {
   }
 }
 
+// A hosted, OpenAI-compatible service.
+//
+// Do NOT judge the key by /models. Measured against OpenRouter: that endpoint is
+// public, and a deliberately invalid key still returned 200 with 338 models — the
+// same trap as llama.cpp's unauthenticated /health. The only honest test is to send
+// the request the app will actually send, so this asks for a single token. It costs
+// a fraction of a cent and proves the address, the key and the model name at once.
+async function probeOpenAI(base, key, model) {
+  if (!key) return { ok: false, error: 'This service needs an API key. Create one on the provider’s site and paste it here.' };
+  try {
+    // 1. address + the list of names the user may type
+    const r = await request(`${base}/models`, { key, timeout: 12000 });
+    if (r.status === 404) {
+      return { ok: false, error: 'No API found there. Check the address includes the version, e.g. /api/v1' };
+    }
+    if (r.status === 401 || r.status === 403) {
+      return { ok: false, error: 'The provider rejected that API key.' };
+    }
+    if (r.status !== 200) return { ok: false, error: `The provider answered with HTTP ${r.status}.` };
+
+    let models = [];
+    try {
+      models = (JSON.parse(r.body).data || []).map((m) => m.id).filter(Boolean);
+    } catch { /* handled below */ }
+    if (!models.length) {
+      return { ok: false, error: 'That address answered, but served no model list. Check it ends with the API version, e.g. /api/v1' };
+    }
+
+    // 2. the key, for real — the smallest possible completion
+    const pick = model && models.includes(model) ? model : models[0];
+    const t = await request(`${base}/chat/completions`, {
+      method: 'POST', key, timeout: 30000,
+      body: { model: pick, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 },
+    });
+    if (t.status === 401 || t.status === 403) {
+      return { ok: false, error: 'The provider rejected that API key.' };
+    }
+    if (t.status === 402) {
+      return { ok: false, error: 'The key works, but the account has no credit.' };
+    }
+    if (t.status === 404) {
+      return { ok: false, error: `The key works, but "${pick}" is not a model this provider serves.` };
+    }
+    if (t.status !== 200) {
+      let detail = '';
+      try { detail = (JSON.parse(t.body).error || {}).message || ''; } catch {}
+      return { ok: false, error: `The provider answered with HTTP ${t.status}${detail ? ': ' + detail.slice(0, 120) : ''}` };
+    }
+
+    return { ok: true, base, models, verified: true, model: `key works · ${models.length} models available` };
+  } catch (e) {
+    const msg = /ENOTFOUND/.test(e.message) ? 'That address does not resolve. Check the spelling.'
+      : /ETIMEDOUT|Timed out/.test(e.message) ? 'The provider did not answer in time.'
+      : /CERT|SSL|TLS/i.test(e.message) ? 'The secure connection could not be established.'
+      : e.message;
+    return { ok: false, error: msg };
+  }
+}
+
 // Streams a chat completion, calling onChunk with each decoded SSE payload.
 // Returns a handle with abort(), so the renderer's stop button still works.
 function streamChat({ settings, payload, onChunk, onDone, onError }) {
-  const { base, key } = endpoint(settings);
+  const { base, key, model } = endpoint(settings);
+  // llama.cpp serves one model and ignores the field; a hosted provider requires it
+  // and rejects the request outright without it.
+  if (model) payload = { ...payload, model };
   let u;
   try { u = new URL(`${base}/v1/chat/completions`); } catch {
     onError(new Error('The engine address is not valid.')); return { abort() {} };
@@ -179,4 +310,6 @@ function streamChat({ settings, payload, onChunk, onDone, onError }) {
   };
 }
 
-module.exports = { endpoint, normalizeUrl, localAddresses, probe, streamChat };
+module.exports = {
+  endpoint, normalizeUrl, localAddresses, probe, streamChat, PROVIDERS, providerOf,
+};

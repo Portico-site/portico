@@ -1,0 +1,829 @@
+<title>How Portico Works — a field guide</title>
+<style>
+  :root{
+    --paper:#FDFCFA; --paper-warm:#F4F1EA; --raised:#FFFFFF;
+    --ink:#2B2A26; --ink-soft:#5E5C56; --ink-faint:#8A877F;
+    --clay:#C0653F; --clay-soft:#F3E2DA;
+    --moss:#4E7A69; --moss-soft:#E2ECE7;
+    --line:#E5E2DA; --line-strong:#CFCBC0;
+    --shadow:rgba(43,42,38,.09);
+    --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --serif:Georgia,"Iowan Old Style","Times New Roman",serif;
+    --mono:ui-monospace,"Cascadia Mono",Consolas,"Courier New",monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#191816; --paper-warm:#211F1C; --raised:#252320;
+      --ink:#F2EFE8; --ink-soft:#B4B0A6; --ink-faint:#8A867C;
+      --clay:#E08a63; --clay-soft:#3A2820;
+      --moss:#84B49E; --moss-soft:#1E2B26;
+      --line:#332F2A; --line-strong:#4A453D;
+      --shadow:rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#191816; --paper-warm:#211F1C; --raised:#252320;
+    --ink:#F2EFE8; --ink-soft:#B4B0A6; --ink-faint:#8A867C;
+    --clay:#E08a63; --clay-soft:#3A2820;
+    --moss:#84B49E; --moss-soft:#1E2B26;
+    --line:#332F2A; --line-strong:#4A453D;
+    --shadow:rgba(0,0,0,.5);
+  }
+  :root[data-theme="light"]{
+    --paper:#FDFCFA; --paper-warm:#F4F1EA; --raised:#FFFFFF;
+    --ink:#2B2A26; --ink-soft:#5E5C56; --ink-faint:#8A877F;
+    --clay:#C0653F; --clay-soft:#F3E2DA;
+    --moss:#4E7A69; --moss-soft:#E2ECE7;
+    --line:#E5E2DA; --line-strong:#CFCBC0;
+    --shadow:rgba(43,42,38,.09);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--serif); font-size:17px; line-height:1.72;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{display:grid; grid-template-columns:250px minmax(0,1fr); gap:3.5rem;
+        max-width:1180px; margin:0 auto; padding:0 2rem}
+
+  /* ---- contents rail ---- */
+  nav{position:sticky; top:0; align-self:start; max-height:100vh; overflow-y:auto;
+      padding:2.6rem 0 3rem; font-family:var(--sans); font-size:13px}
+  nav .rail-title{font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+      font-size:10.5px; color:var(--ink-faint); margin-bottom:1rem}
+  nav a{display:block; padding:.32rem 0 .32rem .8rem; color:var(--ink-soft);
+      text-decoration:none; border-left:2px solid var(--line); line-height:1.45}
+  nav a:hover{color:var(--clay); border-left-color:var(--clay)}
+  nav a .n{color:var(--ink-faint); font-variant-numeric:tabular-nums; margin-right:.45rem}
+
+  main{padding:2.6rem 0 6rem; min-width:0}
+
+  /* ---- masthead ---- */
+  header.mast{border-bottom:2px solid var(--ink); padding-bottom:1.6rem; margin-bottom:2.6rem}
+  .kicker{font-family:var(--mono); font-size:11.5px; letter-spacing:.13em;
+      text-transform:uppercase; color:var(--clay); margin-bottom:.9rem}
+  h1{font-family:var(--sans); font-size:clamp(2.1rem,5vw,3.1rem); font-weight:800;
+     letter-spacing:-.03em; line-height:1.02; margin:0 0 .8rem; text-wrap:balance}
+  .standfirst{font-size:1.12rem; color:var(--ink-soft); margin:0; max-width:62ch}
+  .mast-meta{display:flex; flex-wrap:wrap; gap:.4rem 1.4rem; margin-top:1.4rem;
+      font-family:var(--mono); font-size:11.5px; color:var(--ink-faint);
+      font-variant-numeric:tabular-nums}
+
+  /* ---- structure ---- */
+  section{margin-bottom:4rem; scroll-margin-top:1.5rem}
+  h2{font-family:var(--sans); font-size:1.72rem; font-weight:750; letter-spacing:-.022em;
+     margin:0 0 .3rem; text-wrap:balance; line-height:1.15}
+  h2 .num{font-family:var(--mono); font-size:.82rem; font-weight:500; color:var(--clay);
+     display:block; letter-spacing:.1em; margin-bottom:.5rem}
+  h3{font-family:var(--sans); font-size:1.14rem; font-weight:700; letter-spacing:-.012em;
+     margin:2.2rem 0 .5rem}
+  h4{font-family:var(--sans); font-size:.97rem; font-weight:700; margin:1.5rem 0 .4rem}
+  p{margin:0 0 1rem; max-width:68ch}
+  ul,ol{max-width:68ch; padding-left:1.25rem; margin:0 0 1rem}
+  li{margin-bottom:.42rem}
+  a{color:var(--clay)}
+  strong{font-weight:700}
+  code{font-family:var(--mono); font-size:.845em; background:var(--paper-warm);
+       padding:.1em .38em; border-radius:4px; border:1px solid var(--line)}
+  .lead{font-size:1.06rem; color:var(--ink-soft)}
+
+  /* ---- devices ---- */
+  .note{border-left:3px solid var(--clay); background:var(--clay-soft);
+        padding:.95rem 1.15rem; border-radius:0 8px 8px 0; margin:1.4rem 0; max-width:68ch}
+  .note p:last-child{margin-bottom:0}
+  .note .tag{font-family:var(--mono); font-size:10.5px; letter-spacing:.1em;
+        text-transform:uppercase; color:var(--clay); display:block; margin-bottom:.35rem}
+  .found{border-left-color:var(--moss); background:var(--moss-soft)}
+  .found .tag{color:var(--moss)}
+
+  pre{background:var(--paper-warm); border:1px solid var(--line); border-radius:9px;
+      padding:1rem 1.1rem; overflow-x:auto; margin:1.2rem 0; max-width:68ch}
+  pre code{background:none; border:none; padding:0; font-size:.82rem; line-height:1.65}
+
+  .tablewrap{overflow-x:auto; margin:1.3rem 0; max-width:68ch}
+  table{border-collapse:collapse; width:100%; font-family:var(--sans); font-size:.86rem;
+        min-width:440px}
+  th,td{text-align:left; padding:.6rem .75rem; border-bottom:1px solid var(--line);
+        vertical-align:top}
+  th{font-weight:700; color:var(--ink); border-bottom:1.5px solid var(--line-strong);
+     white-space:nowrap}
+  td{color:var(--ink-soft)}
+  td:first-child{color:var(--ink); font-family:var(--mono); font-size:.8rem; white-space:nowrap}
+  td.num{font-variant-numeric:tabular-nums; text-align:right}
+
+  /* ---- self-check ---- */
+  .quiz{border:1px solid var(--line-strong); border-radius:11px; padding:1.15rem 1.3rem;
+        margin:2rem 0 0; background:var(--raised); max-width:68ch; box-shadow:0 2px 10px var(--shadow)}
+  .quiz > .quiz-head{font-family:var(--sans); font-size:11px; font-weight:700;
+        letter-spacing:.11em; text-transform:uppercase; color:var(--ink-faint);
+        margin-bottom:.9rem; display:flex; align-items:center; gap:.5rem}
+  .quiz > .quiz-head::after{content:""; flex:1; height:1px; background:var(--line)}
+  details{border-top:1px solid var(--line); padding:.7rem 0}
+  details:first-of-type{border-top:none; padding-top:0}
+  details:last-of-type{padding-bottom:0}
+  summary{cursor:pointer; font-family:var(--sans); font-size:.93rem; font-weight:600;
+          color:var(--ink); list-style:none; display:flex; gap:.6rem; align-items:baseline}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"?"; font-family:var(--mono); color:var(--clay); font-weight:700;
+          flex:none; font-size:.85rem}
+  summary:hover{color:var(--clay)}
+  summary:focus-visible{outline:2px solid var(--clay); outline-offset:3px; border-radius:3px}
+  details[open] summary{margin-bottom:.55rem}
+  details .answer{font-size:.95rem; color:var(--ink-soft); padding-left:1.35rem;
+          border-left:2px solid var(--moss); margin-left:.15rem}
+  details .answer p{margin-bottom:.5rem}
+  details .answer p:last-child{margin-bottom:0}
+
+  .prompt-pair{display:grid; gap:.8rem; margin:1.2rem 0; max-width:68ch}
+  .prompt{border-radius:9px; padding:.85rem 1rem; font-family:var(--sans); font-size:.88rem;
+          line-height:1.6; border:1px solid var(--line)}
+  .prompt .lbl{font-family:var(--mono); font-size:10px; letter-spacing:.1em;
+          text-transform:uppercase; display:block; margin-bottom:.4rem}
+  .weak{background:var(--paper-warm)} .weak .lbl{color:var(--ink-faint)}
+  .strong{background:var(--moss-soft); border-color:var(--moss)} .strong .lbl{color:var(--moss)}
+
+  footer{border-top:1px solid var(--line); margin-top:4rem; padding-top:1.4rem;
+         font-family:var(--mono); font-size:11.5px; color:var(--ink-faint)}
+
+  @media (max-width:900px){
+    .wrap{grid-template-columns:1fr; gap:0; padding:0 1.25rem}
+    nav{position:static; max-height:none; padding:1.6rem 0 .5rem;
+        border-bottom:1px solid var(--line); margin-bottom:1.5rem}
+    nav a{display:inline-block; border-left:none; border-bottom:2px solid var(--line);
+        padding:.2rem .7rem .2rem 0; margin-right:.9rem}
+    body{font-size:16.5px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<nav>
+  <div class="rail-title">Contents</div>
+  <a href="#big"><span class="n">00</span>The one-paragraph version</a>
+  <a href="#shape"><span class="n">01</span>The shape of the app</a>
+  <a href="#engine"><span class="n">02</span>The engine</a>
+  <a href="#models"><span class="n">03</span>Models and what the numbers mean</a>
+  <a href="#hardware"><span class="n">04</span>Your hardware</a>
+  <a href="#context"><span class="n">05</span>The context window</a>
+  <a href="#features"><span class="n">06</span>How each feature works</a>
+  <a href="#shared"><span class="n">07</span>The shared engine</a>
+  <a href="#shipping"><span class="n">08</span>Building and shipping</a>
+  <a href="#testing"><span class="n">09</span>How it is tested</a>
+  <a href="#files"><span class="n">10</span>Which file does what</a>
+  <a href="#prompting"><span class="n">11</span>Directing me well</a>
+  <a href="#glossary"><span class="n">12</span>Glossary</a>
+</nav>
+
+<main>
+
+<header class="mast">
+  <div class="kicker">Portico · field guide</div>
+  <h1>How this whole thing actually works</h1>
+  <p class="standfirst">Every concept behind Portico, in the order that makes them make sense —
+    with questions to test yourself, so you find out what you actually know rather than what
+    merely looked familiar.</p>
+  <div class="mast-meta">
+    <span>v0.20.0</span><span>17 commits</span><span>~7,700 lines</span>
+    <span>34 models</span><span>7 test suites</span>
+  </div>
+</header>
+
+<!-- ============ 00 ============ -->
+<section id="big">
+  <h2><span class="num">00</span>The one-paragraph version</h2>
+  <p class="lead">Portico is a desktop app that talks to a language model running on your own
+    computer. It has three layers: a <strong>window</strong> that draws the chat, a
+    <strong>controller</strong> that manages files and processes, and an <strong>engine</strong>
+    — a separate program that does the actual thinking. The window never talks to the engine
+    directly. Everything you add to the app is one of those three layers, or a message passing
+    between them.</p>
+  <p>If you remember nothing else, remember that shape. Almost every question — "where does
+    this code go?", "why can't the page do that?", "why did it break?" — is answered by knowing
+    which layer you are in.</p>
+</section>
+
+<!-- ============ 01 ============ -->
+<section id="shape">
+  <h2><span class="num">01</span>The shape of the app</h2>
+
+  <p>Portico is built with <strong>Electron</strong>, which is a way to make a desktop app out
+    of web technology. An Electron app is really two programs running at once.</p>
+
+  <h3>The two halves</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Half</th><th>What it is</th><th>What it can do</th></tr></thead>
+    <tbody>
+      <tr><td>Main process</td><td>Node.js. No window.</td>
+          <td>Read and write files, start other programs, make network requests, create windows.</td></tr>
+      <tr><td>Renderer</td><td>A web page — HTML, CSS, JavaScript.</td>
+          <td>Draw the interface, handle clicks. <strong>Cannot</strong> touch your disk or start programs.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>That restriction is deliberate. The renderer runs web-page code, and web pages are not
+    allowed to read your hard drive. So when the interface needs something real to happen —
+    save a chat, start the engine, download a model — it has to <em>ask</em> the main process.</p>
+
+  <h3>How they talk: IPC</h3>
+  <p><strong>IPC</strong> means inter-process communication: messages between the two halves.
+    Portico has <strong>60</strong> of these message handlers. It works like ordering at a counter:</p>
+
+  <pre><code>renderer                    preload bridge              main process
+  |                              |                            |
+  | api.saveChat(chat) --------> | ipcRenderer.invoke -------> | ipcMain.handle('save-chat')
+  |                              |                            |   writes the file
+  | &lt;-------------------------- result &lt;---------------------- |</code></pre>
+
+  <p>The middle column is the <strong>preload script</strong> — <code>preload.js</code>. It is
+    the only thing both halves can see, and it publishes a fixed list of <strong>72</strong>
+    permitted calls as <code>window.pristudio</code>. The page cannot invent new ones. If a
+    feature needs something the bridge does not expose, you add it in three places: a handler in
+    <code>main.js</code>, a line in <code>preload.js</code>, and a call in <code>app.js</code>.</p>
+
+  <div class="note found">
+    <span class="tag">Found the hard way</span>
+    <p>Electron <strong>bans</strong> <code>window.prompt()</code>. Clicking "New project" silently
+      did nothing for weeks because the exception was swallowed. This is the layer boundary biting:
+      the renderer is a web page, and Electron removes browser features that would block its
+      process. <code>confirm()</code> still works; <code>prompt()</code> does not.</p>
+  </div>
+
+  <div class="quiz">
+    <div class="quiz-head">Check yourself</div>
+    <details><summary>Why can't the chat window just write your chat file directly?</summary>
+      <div class="answer"><p>Because it is a web page. Web pages have no file access — that is a
+        security rule of the browser engine Electron is built on. The renderer must ask the main
+        process, which is ordinary Node.js and has no such limit.</p></div></details>
+    <details><summary>You want a button that opens the user's Downloads folder. Which files do you touch?</summary>
+      <div class="answer"><p>Three. A handler in <code>main.js</code> (it does the opening), an entry
+        in <code>preload.js</code> (to permit the call), and the button plus its click handler in
+        <code>app.js</code>. Miss the preload line and the page will report the function does not
+        exist.</p></div></details>
+    <details><summary>Something works when you run <code>npm start</code> but fails in the installed app. What kind of bug is that likely to be?</summary>
+      <div class="answer"><p>A packaging problem, not a logic problem. In development the app reads
+        loose files; once installed it reads a bundled archive. Anything that assumed a path, or a
+        library that was not included in the bundle, breaks only after packaging. This exact thing
+        happened here — a library used by the preload script was listed as a development-only
+        dependency, so the bridge failed silently in the installed build.</p></div></details>
+  </div>
+</section>
+
+<!-- ============ 02 ============ -->
+<section id="engine">
+  <h2><span class="num">02</span>The engine</h2>
+
+  <p>Portico does not contain a language model, and does not do the maths itself. It ships a
+    separate program called <strong>llama-server</strong>, from the open-source project
+    <strong>llama.cpp</strong>. When you load a model, Portico starts that program as a child
+    process and then talks to it over the network — on your own machine, at
+    <code>127.0.0.1:8033</code>.</p>
+
+  <p>That address means "this computer only". Nothing leaves the machine.</p>
+
+  <h3>Why a separate program</h3>
+  <ul>
+    <li>If the model crashes, the app does not. Portico notices the process died and reports why.</li>
+    <li>llama.cpp speaks the same request format as commercial AI services, so the same code can
+      talk to a local engine or a remote one — which is exactly how the shared engine works.</li>
+    <li>llama.cpp is maintained by other people, and improves without Portico changing.</li>
+  </ul>
+
+  <h3>The request</h3>
+  <p>A chat request is a list of messages with roles, sent as JSON:</p>
+  <pre><code>POST http://127.0.0.1:8033/v1/chat/completions
+{
+  "messages": [
+    { "role": "system", "content": "instructions the user never sees" },
+    { "role": "user",   "content": "what is a portico?" }
+  ],
+  "stream": true,
+  "temperature": 0.4,
+  "max_tokens": 1024
+}</code></pre>
+
+  <p><code>stream: true</code> means the reply arrives word by word instead of all at once — that
+    is why text appears as it is written. The <strong>system</strong> message is instructions the
+    model receives but you never see; Portico builds it from your saved prompt, any project
+    instructions, and situational guidance.</p>
+
+  <div class="note">
+    <span class="tag">Design decision</span>
+    <p>This request is made by the <strong>main process</strong>, not the page. Two reasons: the
+      access key for a shared engine never reaches the page, and the page's security policy can
+      stay locked to "this computer only" instead of being opened up to arbitrary addresses.</p>
+  </div>
+
+  <div class="quiz">
+    <div class="quiz-head">Check yourself</div>
+    <details><summary>If the engine is a web server, could someone else on your Wi-Fi use it?</summary>
+      <div class="answer"><p>Not by default. It listens on <code>127.0.0.1</code>, which only accepts
+        connections from the same machine. It becomes reachable only if you deliberately switch on
+        sharing, which changes the address to <code>0.0.0.0</code> and requires an access key.</p></div></details>
+    <details><summary>The reply appears all at once instead of word by word. What changed?</summary>
+      <div class="answer"><p>Streaming is off, or the streamed pieces are not being forwarded to the
+        page as they arrive. The request is the same either way — <code>stream</code> just decides
+        whether the engine sends one response or a series of fragments.</p></div></details>
+    <details><summary>Why can the same code talk to your laptop's engine and to a colleague's?</summary>
+      <div class="answer"><p>Because it is an ordinary HTTP request, and the only difference is the
+        address. Local is <code>127.0.0.1:8033</code>; a colleague's machine is
+        <code>192.168.1.40:8033</code>. Everything else is identical.</p></div></details>
+  </div>
+</section>
+
+<!-- ============ 03 ============ -->
+<section id="models">
+  <h2><span class="num">03</span>Models and what the numbers mean</h2>
+
+  <p>A model is a large file of numbers — the <strong>weights</strong>. Portico uses the
+    <strong>GGUF</strong> format, which is what llama.cpp reads. Your catalogue has
+    <strong>34</strong> of them.</p>
+
+  <h3>Parameters: the "7B"</h3>
+  <p>7B means seven billion weights. More weights generally means better answers and a bigger
+    file. It is a rough guide to capability, not a guarantee — a good 7B beats a bad 13B.</p>
+
+  <h3>Quantisation: the "Q4_K_M"</h3>
+  <p>Weights are naturally stored at 16 bits each. Quantisation stores them with fewer bits, which
+    shrinks the file dramatically at a small cost in quality.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Label</th><th>Bits</th><th>7B model</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>F16</td><td class="num">16</td><td class="num">~14 GB</td><td>Original. Rarely worth it.</td></tr>
+      <tr><td>Q8_0</td><td class="num">8</td><td class="num">~7 GB</td><td>Practically identical to the original.</td></tr>
+      <tr><td>Q4_K_M</td><td class="num">~4.5</td><td class="num">~4.7 GB</td><td><strong>The default.</strong> Best size-to-quality trade.</td></tr>
+      <tr><td>Q3_K_M</td><td class="num">~3.5</td><td class="num">~3.5 GB</td><td>Noticeably worse, but fits where Q4 will not.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Mixture of Experts: the "30B-A3B"</h3>
+  <p>Most models use every weight for every word. A <strong>Mixture of Experts</strong> model
+    splits part of itself into several "experts" and uses only two of them per word, chosen by a
+    small router.</p>
+  <p>So <code>Qwen3-30B-A3B</code> means 30 billion total, 3 billion <strong>active</strong> per
+    word. The crucial consequence:</p>
+  <ul>
+    <li><strong>Speed</strong> follows the active number — it runs like a 3B model.</li>
+    <li><strong>Memory</strong> follows the total number — all 30B must be loaded, because the
+      router may pick any expert at any moment.</li>
+  </ul>
+  <p>Older names like <code>Mixtral 8x22B</code> mean the same thing but hide it: 8×22 is 176,
+    while the model actually has about 141 billion weights, because only part of it is duplicated.</p>
+
+  <h3>Vision</h3>
+  <p>A model that can look at images needs a second file, a <strong>projector</strong>
+    (<code>mmproj-*.gguf</code>), which turns pictures into something the model can read. Portico
+    pairs them automatically by matching the longest shared run of characters in their filenames —
+    which is why a projector for one model will not be wrongly attached to another.</p>
+
+  <div class="quiz">
+    <div class="quiz-head">Check yourself</div>
+    <details><summary>You have 16 GB of memory. Is a 30B-A3B model a good fit?</summary>
+      <div class="answer"><p>No. Only 3B is active per word, so it would feel fast — but all 30B must
+        fit in memory first, which at Q4 is about 17 GB. Mixture of Experts saves computing time,
+        never memory. When memory is your limit, it is the wrong shape of model.</p></div></details>
+    <details><summary>Which is likely better: a 13B at Q3, or a 7B at Q4? Both about 5 GB.</summary>
+      <div class="answer"><p>Usually the 13B at Q3 — more knowledge, coarsely stored, tends to beat
+        less knowledge stored precisely. But it is genuinely close, and below Q3 quality falls away
+        quickly. This is worth testing rather than assuming.</p></div></details>
+    <details><summary>Your model ignores an image you attached. First thing to check?</summary>
+      <div class="answer"><p>Whether the model has a projector file and whether that model is the one
+        currently <em>loaded</em> — not merely selected in the dropdown. Without a projector the
+        image is silently dropped.</p></div></details>
+  </div>
+</section>
+
+<!-- ============ 04 ============ -->
+<section id="hardware">
+  <h2><span class="num">04</span>Your hardware</h2>
+
+  <p>Three kinds of memory matter, and they are not interchangeable.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Where</th><th>Yours</th><th>Speed</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td>VRAM</td><td class="num">4 GB</td><td class="num">~200 GB/s</td><td>On the graphics card. Fastest. Smallest.</td></tr>
+      <tr><td>RAM</td><td class="num">15.3 GB</td><td class="num">~50 GB/s</td><td>System memory. The practical limit on model size.</td></tr>
+      <tr><td>SSD</td><td class="num">large</td><td class="num">~5 GB/s</td><td>Storage. Roughly ten times slower than RAM.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Offloading</h3>
+  <p>A model is made of layers. llama.cpp puts as many as fit into VRAM and runs the rest on the
+    processor. A 4.7 GB model on a 4 GB card is not an error — most of it runs on the card, the
+    remainder on the processor, and it is slower than if it all fitted.</p>
+
+  <h3>Can the SSD substitute for memory?</h3>
+  <p>It already does, and it is not a solution. The engine memory-maps the model file, so a model
+    larger than your memory still loads — the system pages pieces in from disk as needed. But
+    producing a <em>single word</em> requires reading essentially every weight. At SSD speed that is
+    around a second per word. It prevents a crash; it does not give you a usable model.</p>
+
+  <div class="note found">
+    <span class="tag">Measured here</span>
+    <p>Portico used to assume the discrete graphics card was the fastest and always chose it. On
+      this laptop that was wrong: the driver had powered the card down, and the built-in graphics
+      measured <strong>15.1</strong> words per second against the "better" card's
+      <strong>3.4</strong>.</p>
+    <p>So a benchmark was added. It then made the opposite mistake — it ranked purely on speed, and
+      picked the built-in graphics, which turned out to produce <strong>pure gibberish</strong>:
+      one character repeated. It now checks that a device produces coherent text before considering
+      how fast it was. Speed is worthless if the words are wrong.</p>
+  </div>
+
+  <div class="quiz">
+    <div class="quiz-head">Check yourself</div>
+    <details><summary>Would a faster SSD let you run bigger models well?</summary>
+      <div class="answer"><p>No. Even a fast SSD is roughly ten times slower than RAM, and every word
+        needs nearly the whole model read. More RAM is the upgrade that changes what you can run;
+        a faster disk only shortens loading.</p></div></details>
+    <details><summary>Name three ways to fit more of a model into 4 GB of VRAM.</summary>
+      <div class="answer"><p>Lower the context size (the conversation's memory occupies VRAM too);
+        use a smaller quantisation so more layers fit; or store the conversation memory itself in a
+        compressed form. For Mixture of Experts models specifically, the engine can also keep the
+        experts in system RAM and run only the attention part on the card.</p></div></details>
+    <details><summary>Why is "the fastest device" the wrong thing to measure?</summary>
+      <div class="answer"><p>Because a device can be fast and wrong. That happened here — the quicker
+        graphics device returned repeated characters instead of words. Correctness has to be
+        confirmed before speed means anything.</p></div></details>
+  </div>
+</section>
+
+<!-- ============ 05 ============ -->
+<section id="context">
+  <h2><span class="num">05</span>The context window</h2>
+
+  <p class="lead">This is the concept that explains most "why is it being stupid" moments. Learn
+    this one properly.</p>
+
+  <p>A model has no memory. It does not recall your last message. Every single time you press
+    send, Portico re-sends the <strong>entire conversation</strong>, and the model reads all of it
+    fresh. The <strong>context window</strong> is the maximum amount it can read at once.</p>
+
+  <h3>Tokens</h3>
+  <p>Text is measured in <strong>tokens</strong>, roughly ¾ of a word. Portico estimates
+    <strong>3.6 characters per token</strong> — approximate, but stable enough to budget with.</p>
+
+  <h3>The budget</h3>
+  <p>Your context is not all available for conversation. Room must be reserved for the reply,
+    because the answer has to fit in the same window:</p>
+  <pre><code>context size          4,096 tokens
+reserved for reply   -1,024
+overhead               -300
+                     -------
+room for conversation 2,772 tokens</code></pre>
+
+  <p>When the conversation exceeds that, Portico drops the <strong>oldest</strong> messages. It
+    does not warn loudly — the ring in the strip below the message box turns amber, and the panel
+    tells you how many were dropped. That is why a long conversation starts forgetting how it began.</p>
+
+  <div class="note found">
+    <span class="tag">Found the hard way</span>
+    <p>Early on, every past message re-sent its <em>full</em> retrieved web-search text. Three
+      searched questions consumed 7,237 of 8,192 tokens — <strong>88%</strong> — so the model lost
+      the conversation entirely and follow-ups answered nonsense. Now only the message being
+      answered carries its full text; older turns collapse to a one-line summary.</p>
+  </div>
+
+  <h3>Why bigger is not free</h3>
+  <p>The conversation is held in something called the <strong>KV cache</strong>, and it lives in
+    the same VRAM as the model. Raising context from 4,096 to 65,536 can consume gigabytes — which
+    pushes model layers off the graphics card and makes everything slower. Context size is a
+    trade, not an upgrade.</p>
+
+  <div class="quiz">
+    <div class="quiz-head">Check yourself</div>
+    <details><summary>You say "my name is Ana", then thirty messages later it has forgotten. Why?</summary>
+      <div class="answer"><p>The context filled and the oldest messages — including that one — were
+        dropped to make room. The model is not forgetting; that text is no longer being sent to it
+        at all.</p></div></details>
+    <details><summary>Raising context from 4,096 to 32,768 makes replies much slower. Is that a bug?</summary>
+      <div class="answer"><p>No. The conversation's memory grew and now occupies VRAM that the model
+        was using, so fewer layers fit on the graphics card and more runs on the processor. It is
+        the expected cost.</p></div></details>
+    <details><summary>Why does setting a longer maximum reply reduce the room for conversation?</summary>
+      <div class="answer"><p>Because the reply must fit in the same window. Room is reserved before
+        history is packed. Ask for a longer possible answer and you have reserved more, leaving less
+        for what came before.</p></div></details>
+    <details><summary>Attaching a large PDF makes it forget everything else. Why?</summary>
+      <div class="answer"><p>The document's text goes into the same budget. A long PDF can consume
+        most of it, crowding out the conversation. Portico trims attachments to a share of the
+        budget for exactly this reason.</p></div></details>
+  </div>
+</section>
+
+<!-- ============ 06 ============ -->
+<section id="features">
+  <h2><span class="num">06</span>How each feature works</h2>
+
+  <h3>Web search</h3>
+  <p>Models know nothing after their training date and cannot browse. Search works in four steps:
+    decide whether to search; turn your message into keywords; fetch results from several sources
+    at once; paste the text into the request so the model can read it.</p>
+  <p>The important finding from building it: <strong>search pages block automation, but APIs and
+    news feeds do not</strong>. Wikipedia, Marginalia, Google News, Stack Overflow, arXiv and
+    Polymarket all work without a key; ordinary search-engine pages return challenges instead of
+    results. Search is <strong>off by default</strong>, because it is the one thing that sends your
+    words off the machine.</p>
+
+  <h3>Projects and assistants</h3>
+  <p>A <strong>project</strong> is standing instructions plus reference files, applied to every
+    chat inside it. An <strong>assistant</strong> is a saved persona plus generation settings.
+    Project material is capped at 30% of the character budget so it cannot crowd out the
+    conversation.</p>
+
+  <h3>Artifacts</h3>
+  <p>When the model writes a web page, Portico can render it. The page is written to disk and
+    shown in a frame that is deliberately isolated — it can run scripts, but it cannot read
+    anything belonging to Portico.</p>
+
+  <div class="note found">
+    <span class="tag">Found the hard way</span>
+    <p>The chat settings panel appeared completely blank. The panels hide by sliding out of view
+      with a negative margin — but a hidden panel still <em>paints</em>, and the artifact panel's
+      empty frame was drawing straight over the settings. The white rectangle was an empty web
+      page sitting on top. Fixed by making a closed panel genuinely stop painting.</p>
+  </div>
+
+  <h3>Running Python</h3>
+  <p>Code blocks get a Run button. It never runs by itself, the code is scanned for risky
+    operations first, and it stops after 90 seconds. Charts are captured and shown in the
+    conversation.</p>
+  <p>Portico also sets chart styling defaults, because matplotlib's own defaults are from 2003 and
+    are the main reason generated charts look dated. It repairs old style names too — models still
+    write <code>seaborn-whitegrid</code>, a name removed from matplotlib in version 3.6, which used
+    to crash the whole snippet.</p>
+
+  <h3>Image generation and voice</h3>
+  <p>Both are separate bundled programs, like the chat engine. Image generation downloads on demand
+    because it is large; because the chat model and the image model cannot share 4 GB of VRAM,
+    Portico stops the chat engine, renders, then restarts it.</p>
+
+  <div class="quiz">
+    <div class="quiz-head">Check yourself</div>
+    <details><summary>Why is web search off by default in an app that promises privacy?</summary>
+      <div class="answer"><p>Because searching necessarily sends your words to someone else's server.
+        Everything else happens on your machine, so this is the single exception and it should be a
+        deliberate choice, not a default. The app also says on screen whenever it is on.</p></div></details>
+    <details><summary>You ask "tell me more about him" and get nonsense. What is going wrong?</summary>
+      <div class="answer"><p>A follow-up has no subject of its own. If it is treated as a fresh search
+        query, "tell me more about him" is searched literally and returns unrelated pages. It has to
+        reuse the topic from the previous turn — which is exactly the bug that was found and fixed
+        here.</p></div></details>
+    <details><summary>Why does generating an image unload your chat model?</summary>
+      <div class="answer"><p>They cannot both fit in 4 GB of VRAM. Portico stops the chat engine,
+        generates, then restarts it — which is why the model reloads afterwards.</p></div></details>
+  </div>
+</section>
+
+<!-- ============ 07 ============ -->
+<section id="shared">
+  <h2><span class="num">07</span>The shared engine</h2>
+
+  <p>One computer with a good graphics card can run the model for everyone else on the network.
+    The same app is both host and client — it is a mode, not a separate product.</p>
+  <p>This works because the engine was already an HTTP server. Sharing changes its address from
+    "this computer only" to "reachable on the network", and requires an access key.</p>
+
+  <p><strong>Only the thinking is shared.</strong> Chats, files and projects stay on each person's
+    own machine, so the host never becomes a store of everyone's history.</p>
+
+  <div class="note found">
+    <span class="tag">Found the hard way</span>
+    <p>Two things nearly shipped broken. The "test connection" button checked an address that
+      llama.cpp deliberately leaves <em>unprotected</em>, so it reported success even with a wrong
+      key. And sharing with several people would silently have given each of them a fraction of the
+      configured conversation memory, because the engine divides context across simultaneous users.</p>
+  </div>
+
+  <div class="quiz">
+    <div class="quiz-head">Check yourself</div>
+    <details><summary>Four people share one engine. What does the host need more of?</summary>
+      <div class="answer"><p>VRAM. Each simultaneous conversation needs its own slice of memory for
+        its history, on top of the model itself. The processor is rarely the limit; memory is.</p></div></details>
+    <details><summary>Is it safe to open this to the internet?</summary>
+      <div class="answer"><p>No. Traffic is unencrypted, so it belongs on a network you trust. For
+        access from outside, the right tool is a VPN — not forwarding the port.</p></div></details>
+  </div>
+</section>
+
+<!-- ============ 08 ============ -->
+<section id="shipping">
+  <h2><span class="num">08</span>Building and shipping</h2>
+
+  <p>Writing code and shipping an app are separate acts. <code>npm run release</code> builds the
+    installer and copies it where the website expects it — both, because they used to drift apart.</p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>electron-builder</td><td>Turns the source into a real installer.</td></tr>
+      <tr><td>asar</td><td>The archive your code is packed into. Loose files at build time, one bundle after.</td></tr>
+      <tr><td>extraResources</td><td>Files copied in <em>beside</em> the bundle — the engine binaries, which must stay real files.</td></tr>
+      <tr><td>code signing</td><td>A paid certificate proving who published the app. Without it, Windows warns.</td></tr>
+      <tr><td>auto-update</td><td>Compares your version against a published release. Inactive until the project is published.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note found">
+    <span class="tag">Found the hard way</span>
+    <p>A whole session's work appeared to have vanished. The builds went to the project's output
+      folder, while the Start menu still opened the version installed three days earlier. Building
+      is not installing. Worse, two different builds can both call themselves <code>0.20.0</code> —
+      so version numbers are not proof of contents.</p>
+  </div>
+
+  <h3>Other platforms</h3>
+  <p>The JavaScript is already portable. What differs per system is the engine binaries, which are
+    compiled per platform. Chat works everywhere; voice and image generation are Windows-only for
+    now, because those projects do not publish ready-made Mac or Linux builds.</p>
+
+  <div class="quiz">
+    <div class="quiz-head">Check yourself</div>
+    <details><summary>You changed a file and rebuilt, but the app behaves the old way. Two likely causes?</summary>
+      <div class="answer"><p>You are opening the installed copy rather than the newly built one; or an
+        old copy is still running and the app's single-instance rule simply focused it instead of
+        starting the new one.</p></div></details>
+    <details><summary>Why do the engine binaries sit outside the code bundle?</summary>
+      <div class="answer"><p>Because they are programs that must be launched, and you cannot launch a
+        file that only exists inside an archive. They have to remain real files on disk.</p></div></details>
+  </div>
+</section>
+
+<!-- ============ 09 ============ -->
+<section id="testing">
+  <h2><span class="num">09</span>How it is tested</h2>
+
+  <p>Seven suites drive the <strong>real, installed application</strong> — not a simulation. They
+    connect to the running app the way browser developer tools do, then click things and read what
+    happened.</p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Suite</th><th>Covers</th></tr></thead>
+    <tbody>
+      <tr><td>full-suite</td><td>83 checks across every feature</td></tr>
+      <tr><td>e2e-flows</td><td>19 real journeys — actual search, vision, Python, images</td></tr>
+      <tr><td>network</td><td>The shared engine, verified from outside the app</td></tr>
+      <tr><td>status-strip</td><td>Model, effort and context controls</td></tr>
+      <tr><td>panels · sidebar · chat-settings</td><td>Interface regressions</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>The lesson worth carrying: a test that fails is not automatically a broken product, and a test
+    that passes is not automatically a working one. Several "failures" here were faults in the test
+    itself — a slider that snaps to steps, a wait too short for a delayed save. But one apparent
+    flake was real: the search tests began returning gibberish, which turned out to be the
+    graphics-device bug. <strong>Investigate before dismissing.</strong></p>
+
+  <div class="quiz">
+    <div class="quiz-head">Check yourself</div>
+    <details><summary>Why test the installed app rather than the source?</summary>
+      <div class="answer"><p>Because the packaging step is itself a source of bugs. Testing the source
+        would miss exactly the class of problem that only appears once the app is bundled and
+        installed.</p></div></details>
+  </div>
+</section>
+
+<!-- ============ 10 ============ -->
+<section id="files">
+  <h2><span class="num">10</span>Which file does what</h2>
+  <p>Naming the file in a request is the single fastest way to get a precise change.</p>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>File</th><th>Lines</th><th>Responsibility</th></tr></thead>
+    <tbody>
+      <tr><td>renderer/app.js</td><td class="num">2,798</td><td>Everything you see and click. The largest file.</td></tr>
+      <tr><td>renderer/index.html</td><td class="num">232</td><td>The page skeleton.</td></tr>
+      <tr><td>renderer/styles.css</td><td class="num">1,564</td><td>All appearance, including the four themes.</td></tr>
+      <tr><td>main/main.js</td><td class="num">676</td><td>Startup, windows, and the 60 message handlers.</td></tr>
+      <tr><td>main/websearch.js</td><td class="num">688</td><td>Every search source and the decision to search.</td></tr>
+      <tr><td>main/models.js</td><td class="num">484</td><td>The catalogue and downloads.</td></tr>
+      <tr><td>main/server-manager.js</td><td class="num">317</td><td>Starting, stopping and benchmarking the engine.</td></tr>
+      <tr><td>main/pyrun.js</td><td class="num">263</td><td>Running Python and chart styling.</td></tr>
+      <tr><td>main/engine-client.js</td><td class="num">182</td><td>Talking to a local or remote engine.</td></tr>
+      <tr><td>main/imagegen.js</td><td class="num">166</td><td>Image generation.</td></tr>
+      <tr><td>main/store.js</td><td class="num">116</td><td>Saving chats, settings and projects.</td></tr>
+      <tr><td>main/preload.js</td><td class="num">107</td><td>The bridge — 72 permitted calls.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ============ 11 ============ -->
+<section id="prompting">
+  <h2><span class="num">11</span>Directing me well</h2>
+
+  <p class="lead">You asked for this guide so you could steer better. Here is what actually
+    changes the outcome.</p>
+
+  <h3>Say the symptom, not the diagnosis</h3>
+  <p>You are better placed to describe what you saw than to guess the cause — and a wrong guess
+    sends me down the wrong path. "Chat settings don't work" was perfect: it led to the real cause,
+    an invisible frame painting over the panel, which no theory of mine would have reached first.</p>
+
+  <div class="prompt-pair">
+    <div class="prompt weak"><span class="lbl">Vague</span>the chat is broken</div>
+    <div class="prompt strong"><span class="lbl">Useful</span>when I open chat settings the panel is blank — the title shows but nothing under it. Started after the last build.</div>
+  </div>
+
+  <h3>Paste the error</h3>
+  <p>The <code>seaborn-whitegrid</code> traceback you pasted took about a minute to diagnose.
+    Described in words it could have taken twenty. Full error text is the highest-value thing you
+    can give me.</p>
+
+  <h3>Name the layer or the file</h3>
+  <p>Now that you know the shape, use it. "In the composer" or "in <code>websearch.js</code>"
+    removes all the searching.</p>
+
+  <div class="prompt-pair">
+    <div class="prompt weak"><span class="lbl">Vague</span>make the search better</div>
+    <div class="prompt strong"><span class="lbl">Useful</span>in websearch.js, add a source for recipes, and keep Wikipedia working</div>
+  </div>
+
+  <h3>Say what must not change</h3>
+  <p>This one saves the most rework. "Fix the alignment without touching the animations" tells me
+    where the fence is. Without it I may improve something you were happy with.</p>
+
+  <h3>Give me a reference, or say what "better" means</h3>
+  <p>The screenshots you sent were far more effective than any description. If you have no
+    reference, name the quality: "smaller", "less cramped", "like a terminal status bar".</p>
+
+  <h3>Separate asking from building</h3>
+  <p>"Just asking, don't change anything yet" is genuinely useful — you get an answer without
+    changes you did not want. Equally, "do it" is a clear instruction to stop discussing.</p>
+
+  <h3>Ask me to prove it</h3>
+  <p>"How do you know?" is a fair and useful question. Twice in this project a confident change
+    was wrong — the graphics benchmark that chose a device producing gibberish, and a "fix" to an
+    escaping bug that did not exist. Measurement beats reasoning, and you are entitled to see the
+    measurement.</p>
+
+  <div class="note">
+    <span class="tag">A template that works</span>
+    <p><strong>What I see</strong> — the symptom, or the error, pasted in full.<br>
+       <strong>Where</strong> — the screen, the feature, or the file.<br>
+       <strong>What I want</strong> — the outcome, not the implementation.<br>
+       <strong>What not to touch</strong> — anything you are already happy with.</p>
+  </div>
+
+  <div class="quiz">
+    <div class="quiz-head">Check yourself</div>
+    <details><summary>Rewrite: "the models are bad"</summary>
+      <div class="answer"><p>Something like: "Qwen 7B gives short, shallow answers to coding
+        questions, while Llama 3B answers the same ones well. Nothing else changed. Is this the
+        model, or a setting?" — it names what, compares against something, and asks a real
+        question.</p></div></details>
+    <details><summary>You want a change but fear breaking things. What do you add?</summary>
+      <div class="answer"><p>The fence, and a request for proof: "add X, don't change the composer
+        layout, and run the tests afterwards."</p></div></details>
+  </div>
+</section>
+
+<!-- ============ 12 ============ -->
+<section id="glossary">
+  <h2><span class="num">12</span>Glossary</h2>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Term</th><th>In one line</th></tr></thead>
+    <tbody>
+      <tr><td>Electron</td><td>Framework for building desktop apps out of web technology.</td></tr>
+      <tr><td>main process</td><td>The half with file and process access. No window.</td></tr>
+      <tr><td>renderer</td><td>The half that draws the interface. A web page, with a web page's limits.</td></tr>
+      <tr><td>IPC</td><td>Messages between those two halves.</td></tr>
+      <tr><td>preload</td><td>The bridge listing exactly which messages the page may send.</td></tr>
+      <tr><td>llama.cpp</td><td>The open-source project that actually runs the model.</td></tr>
+      <tr><td>llama-server</td><td>The bundled program Portico starts and talks to.</td></tr>
+      <tr><td>GGUF</td><td>The model file format llama.cpp reads.</td></tr>
+      <tr><td>quantisation</td><td>Storing weights with fewer bits: smaller file, slight quality loss.</td></tr>
+      <tr><td>token</td><td>The unit text is measured in — roughly ¾ of a word.</td></tr>
+      <tr><td>context window</td><td>How much the model can read at once, including its own reply.</td></tr>
+      <tr><td>KV cache</td><td>Where the conversation is held. Lives in VRAM and grows with context.</td></tr>
+      <tr><td>offloading</td><td>Putting some model layers on the graphics card and the rest on the processor.</td></tr>
+      <tr><td>memory-mapping</td><td>Reading the model from disk on demand, so it can exceed your memory — slowly.</td></tr>
+      <tr><td>MoE</td><td>Mixture of Experts: many weights loaded, few used per word.</td></tr>
+      <tr><td>projector</td><td>The extra file that lets a model see images.</td></tr>
+      <tr><td>streaming</td><td>Receiving the reply piece by piece as it is written.</td></tr>
+      <tr><td>system prompt</td><td>Instructions the model reads that you never see in the conversation.</td></tr>
+      <tr><td>asar</td><td>The archive your code is packed into when the app is built.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<footer>
+  Portico v0.20.0 · written against the code as it stands, including the mistakes it took to get here.
+</footer>
+
+</main>
+</div>

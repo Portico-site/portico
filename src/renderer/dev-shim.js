@@ -220,6 +220,12 @@
     testRemote: async ({ url }) => (url
       ? { ok: true, model: 'mock-model.gguf', base: url }
       : { ok: false, error: 'Enter an address first.' }),
+    listProviders: async () => ([
+      { id: 'lan', label: "Another computer on my network", base: '', needsModel: false, offMachine: false, attested: false, signup: '', note: '' },
+      { id: 'redpill', label: 'RedPill — GPU inside a secure enclave', base: 'https://api.red-pill.ai/v1', needsModel: true, offMachine: true, attested: true, signup: 'https://red-pill.ai', note: 'Confidential mode, provable.' },
+      { id: 'openrouter', label: 'OpenRouter — many models, one key', base: 'https://openrouter.ai/api/v1', needsModel: true, offMachine: true, attested: false, signup: 'https://openrouter.ai', note: 'A broker in front of many providers.' },
+      { id: 'custom', label: 'Any other OpenAI-compatible service', base: '', needsModel: true, offMachine: true, attested: false, signup: '', note: '' },
+    ]),
     applySharing: async () => status,
     listChats: async () => Object.values(chats).map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt, createdAt: c.createdAt })),
     getChat: async (id) => chats[id] || null,
