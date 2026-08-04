@@ -1345,6 +1345,7 @@ async function renderSettingsView() {
   `;
   renderThemePicker();
   renderEngineList();
+  groupSettings();
   renderImageModelPicker();
   wireAboutSection();
   $('s-test').addEventListener('click', testEngines);
@@ -1382,6 +1383,67 @@ async function renderSettingsView() {
     updatePill();
     toast('Settings saved');
   });
+}
+
+// The settings template is one long flat column split by text dividers. Rather than
+// rewrite 180 lines of markup — and risk moving an id something else depends on —
+// walk the rendered children and fold each run between dividers into its own card.
+// Purely structural: every element keeps its id, its value and its listeners.
+function groupSettings() {
+  const form = $('settings-form');
+  if (!form || form.querySelector('.set-group')) return;
+
+  const kids = [...form.children];
+  const groups = [];
+  // anything before the first divider belongs to an opening section that the
+  // template never named
+  let current = { title: 'Engine and hardware', items: [] };
+
+  for (const el of kids) {
+    if (el.classList.contains('settings-sep')) {
+      if (current.items.length) groups.push(current);
+      current = { title: el.textContent.trim(), items: [] };
+    } else {
+      current.items.push(el);
+    }
+  }
+  if (current.items.length) groups.push(current);
+  if (groups.length < 2) return;   // nothing to gain
+
+  form.innerHTML = '';
+  groups.forEach((g, i) => {
+    const card = document.createElement('section');
+    card.className = 'set-group';
+    card.style.setProperty('--i', i);      // drives the staggered entrance
+
+    const head = document.createElement('h3');
+    head.className = 'set-group-title';
+    head.textContent = g.title;
+    card.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'set-group-body';
+    g.items.forEach((el) => body.appendChild(el));
+    card.appendChild(body);
+
+    form.appendChild(card);
+  });
+}
+
+// Reveal a conditional block with height, not a hard cut. `hidden` cannot be
+// animated (display:none), so the class carries the animation and `hidden` is only
+// applied once the collapse has finished.
+function revealBox(el, show) {
+  if (!el) return;
+  if (show) {
+    el.hidden = false;
+    void el.offsetWidth;                 // flush; rAF never fires while occluded
+    el.classList.add('open');
+  } else {
+    el.classList.remove('open');
+    const done = () => { if (!el.classList.contains('open')) el.hidden = true; };
+    setTimeout(done, 260);
+  }
 }
 
 // Times each graphics device on a real generation, then remembers the winner.
@@ -1433,8 +1495,8 @@ function wireSharedEngine() {
   const share = $('s-share');
 
   const sync = () => {
-    $('s-remote-box').hidden = !remote.checked;
-    $('s-share-box').hidden = !share.checked;
+    revealBox($('s-remote-box'), remote.checked);
+    revealBox($('s-share-box'), share.checked);
   };
 
   remote.addEventListener('change', () => {
@@ -1468,7 +1530,9 @@ function wireSharedEngine() {
     const sel = $('s-provider');
     if (!sel) return;
     sel.innerHTML = list.map((p) =>
-      `<option value="${esc(p.id)}" ${(s.remoteProvider || 'lan') === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('');
+      // S.settings, not the `s` local — that one belongs to renderSettingsView and
+      // is out of scope in here, which left the picker empty and threw on open.
+      `<option value="${esc(p.id)}" ${((S.settings && S.settings.remoteProvider) || 'lan') === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('');
     const sync = () => {
       const p = list.find((x) => x.id === sel.value) || list[0];
       $('s-provider-note').textContent = p.note || '';
