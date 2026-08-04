@@ -417,27 +417,6 @@ input, textarea, select {
   flex-direction: column;
 }
 
-#empty-state {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  padding-bottom: 8vh;
-}
-.greeting-mark { color: var(--accent); }
-.greeting-mark svg { width: 34px; height: 34px; }
-/* Big, tightly-tracked sans — the greeting is the whole empty screen, so it
-   carries the weight rather than sharing it with decoration. */
-.greeting {
-  font-family: var(--sans);
-  font-weight: 650;
-  font-size: 42px;
-  letter-spacing: -0.022em;
-  color: var(--text);
-  text-align: center;
-}
 
 #messages {
   width: 100%;
@@ -555,8 +534,16 @@ input, textarea, select {
   margin: 0 auto;
   padding: 8px 24px 10px;
 }
-#view-chat.empty #chat-scroll { flex: 0 1 auto; }
-#view-chat.empty #composer-wrap { margin-bottom: 26vh; }
+/* With nothing said yet the composer is the whole screen, so centre it properly
+   rather than pushing it up with a percentage margin — that only looked centred
+   at one window height. */
+#view-chat.empty { justify-content: center; }
+#view-chat.empty #chat-scroll { flex: 0 0 auto; }
+#view-chat.empty #empty-state { display: none; }
+/* the message list keeps its padding when empty, which left the composer ~30px
+   below centre — collapse it while there is nothing to show */
+#view-chat.empty #messages { padding: 0; }
+#view-chat.empty #composer-wrap { margin-bottom: 0; }
 
 #composer {
   background: var(--bg-raised);
@@ -1322,9 +1309,60 @@ details.think .think-body {
   padding-right: calc(var(--wco-w, 138px) - 6px);
   min-height: 26px;
 }
-#panel textarea { padding: 9px 11px; resize: vertical; font-size: 13.5px; }
-#panel input[type="number"] { padding: 8px 11px; }
-#panel input[type="range"] { accent-color: var(--accent); padding: 0; border: none; background: transparent; }
+#panel textarea { padding: 10px 12px; resize: vertical; font-size: 13.5px; line-height: 1.55; min-height: 92px; }
+#panel input[type="number"] { padding: 9px 12px; }
+#panel .field > span { font-size: 12.5px; font-weight: 600; color: var(--text-muted); display: flex; align-items: baseline; gap: 8px; }
+#panel .field .hint { font-weight: 400; }
+
+/* The value belongs beside its label, not floating after it — a chip reads as a
+   readout rather than as more label. */
+#panel .field > span em {
+  font-style: normal;
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text);
+  background: var(--bg-hover);
+  padding: 1px 7px;
+  border-radius: 5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Drawn rather than inherited: the browser default renders differently on every
+   platform, and accent-color alone cannot size the track or the thumb. */
+#panel input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+#panel input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+#panel input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  margin-top: -5.5px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-raised);
+  box-shadow: 0 1px 3px var(--shadow);
+  transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#panel input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.18); }
+#panel input[type="range"]:active::-webkit-slider-thumb { transform: scale(0.94); }
+#panel input[type="range"]:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* the two sliders belong together, away from the prompt above them */
+#panel .field:has(input[type="range"]) { gap: 3px; }
 .panel-note { font-size: 11.5px; color: var(--text-faint); }
 
 /* ---------- Toast ---------- */
@@ -1568,10 +1606,6 @@ details.think .think-body {
 .btn { transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease; }
 #composer { transition: border-color 0.18s ease, box-shadow 0.18s ease; }
 #composer:focus-within { box-shadow: 0 4px 22px var(--shadow), 0 0 0 1px rgba(217, 119, 87, 0.22); }
-#empty-state { animation: fadeIn 0.4s ease both; }
-.greeting-mark svg { transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
-#empty-state:hover .greeting-mark svg { transform: translateY(-3px); }
-
 /* --- sidebar --- */
 
 @keyframes slideInLeft { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
