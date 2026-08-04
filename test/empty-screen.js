@@ -45,36 +45,58 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
   console.log('\n========== PANTALLA VACÍA ==========\n');
 
-  const gone = JSON.parse(await c.eval(`JSON.stringify({
-    mark: !!document.querySelector('.greeting-mark'),
-    heading: !!document.querySelector('.greeting'),
-    emptyStatePresent: !!document.querySelector('#empty-state'),
-    bodyText: (document.querySelector('#view-chat').innerText || '').includes("What's on your mind")
-  })`));
-  check(!gone.mark, 'the logo is gone from the empty screen');
-  check(!gone.heading, 'the heading is gone');
-  check(!gone.bodyText, '"What\'s on your mind?" no longer appears');
-  check(gone.emptyStatePresent, 'the empty-state element is still there for the code that keys off it');
-
-  // centring: the gap above the composer should match the gap below it
-  const geo = JSON.parse(await c.eval(`(() => {
+  // The greeting follows the sidebar: open shows it, collapsed strips the screen
+  // back to the message box alone.
+  const look = async () => JSON.parse(await c.eval(`(() => {
+    const es = document.querySelector('#empty-state');
     const view = document.querySelector('#view-chat');
     const wrap = document.querySelector('#composer-wrap');
     const v = view.getBoundingClientRect();
     const w = wrap.getBoundingClientRect();
+    const e = es.getBoundingClientRect();
     return JSON.stringify({
-      isEmpty: view.classList.contains('empty'),
+      display: getComputedStyle(es).display,
+      greetH: Math.round(e.height),
       above: Math.round(w.top - v.top),
       below: Math.round(v.bottom - w.bottom),
-      viewH: Math.round(v.height),
+      isEmpty: view.classList.contains('empty'),
       justify: getComputedStyle(view).justifyContent
     });
   })()`));
-  check(geo.isEmpty, 'the view is in its empty state');
-  check(geo.justify === 'center', 'the view centres its contents', `justify-content: ${geo.justify}`);
-  const skew = Math.abs(geo.above - geo.below);
-  check(skew <= 24, 'the composer sits centred, not pushed up',
-    `${geo.above}px above vs ${geo.below}px below (difference ${skew}px)`);
+
+  const setSidebar = async (collapsed) => {
+    await c.eval(`document.querySelector('#sidebar').classList.${collapsed ? 'add' : 'remove'}('collapsed')`);
+    await wait(350);
+  };
+
+  await setSidebar(false);
+  const open = await look();
+  check(open.isEmpty, 'the view is in its empty state');
+  check(open.justify === 'center', 'the view centres its contents', `justify-content: ${open.justify}`);
+  check(open.display !== 'none' && open.greetH > 80, 'with the sidebar open the greeting shows',
+    `${open.greetH}px tall`);
+  // the greeting sits above the composer, so what should be centred is the pair —
+  // the composer alone is expected to sit lower by exactly the greeting's height
+  const groupSkew = Math.abs((open.above - open.greetH) - open.below);
+  check(groupSkew <= 8, 'greeting and composer are centred together as one group',
+    `${open.above}px above (${open.greetH} of it greeting) vs ${open.below}px below`);
+
+  await setSidebar(true);
+  const shut = await look();
+  check(shut.display === 'none', 'collapsing the sidebar hides the greeting');
+  check(Math.abs(shut.above - shut.below) <= 8, 'the composer re-centres on its own',
+    `${shut.above}px above vs ${shut.below}px below`);
+
+  await setSidebar(false);
+  const again = await look();
+  check(again.display !== 'none' && again.greetH > 80, 'reopening brings it back', `${again.greetH}px tall`);
+
+  // and it must never come back once there is a conversation
+  await c.eval(`document.querySelector('#view-chat').classList.remove('empty')`);
+  await wait(200);
+  check(await c.eval(`getComputedStyle(document.querySelector('#empty-state')).display === 'none'`),
+    'it stays hidden once a conversation has started');
+  await c.eval(`document.querySelector('#view-chat').classList.add('empty')`);
 
   console.log('\n========== AJUSTES DE CHAT ==========\n');
   await c.eval(`document.querySelector('#panel').classList.remove('closed')`);

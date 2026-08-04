@@ -539,11 +539,42 @@ input, textarea, select {
    at one window height. */
 #view-chat.empty { justify-content: center; }
 #view-chat.empty #chat-scroll { flex: 0 0 auto; }
-#view-chat.empty #empty-state { display: none; }
-/* the message list keeps its padding when empty, which left the composer ~30px
-   below centre — collapse it while there is nothing to show */
+/* the message list keeps its padding when empty, which left the composer below
+   centre — collapse it while there is nothing to show */
 #view-chat.empty #messages { padding: 0; }
 #view-chat.empty #composer-wrap { margin-bottom: 0; }
+
+/* The greeting belongs to the full view. Collapsing the sidebar is a request for a
+   bare screen, so it goes too — and the composer re-centres on its own, because the
+   whole group is what gets centred. #main is a sibling of #sidebar, which is what
+   lets the sidebar's state reach in here. */
+#view-chat.empty #empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 28px;
+  animation: fadeIn 0.35s ease both;
+}
+#sidebar.collapsed ~ #main #view-chat.empty #empty-state { display: none; }
+#empty-state { display: none; }   /* never shown once a conversation has started */
+
+.greeting-mark { color: var(--accent); display: flex; }
+.greeting-mark svg {
+  width: 34px;
+  height: 34px;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#empty-state:hover .greeting-mark svg { transform: translateY(-3px); }
+.greeting {
+  font-family: var(--sans);
+  font-weight: 650;
+  font-size: 42px;
+  letter-spacing: -0.022em;
+  color: var(--text);
+  text-align: center;
+  text-wrap: balance;
+}
 
 #composer {
   background: var(--bg-raised);
