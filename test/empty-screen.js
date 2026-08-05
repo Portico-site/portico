@@ -47,21 +47,28 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // The greeting follows the sidebar: open shows it, collapsed strips the screen
   // back to the message box alone.
+  // The greeting fades with `display ... allow-discrete`, which holds the old value
+  // until the transition ends — and an occluded Electron window never composites,
+  // so it never ends here. Jump to the settled state before measuring.
   const look = async () => JSON.parse(await c.eval(`(() => {
     const es = document.querySelector('#empty-state');
     const view = document.querySelector('#view-chat');
     const wrap = document.querySelector('#composer-wrap');
+    es.style.transition = 'none';
+    void document.body.offsetWidth;
     const v = view.getBoundingClientRect();
     const w = wrap.getBoundingClientRect();
     const e = es.getBoundingClientRect();
-    return JSON.stringify({
+    const out = {
       display: getComputedStyle(es).display,
       greetH: Math.round(e.height),
       above: Math.round(w.top - v.top),
       below: Math.round(v.bottom - w.bottom),
       isEmpty: view.classList.contains('empty'),
       justify: getComputedStyle(view).justifyContent
-    });
+    };
+    es.style.transition = '';
+    return JSON.stringify(out);
   })()`));
 
   const setSidebar = async (collapsed) => {

@@ -181,9 +181,44 @@ input, textarea, select {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  transition: margin-left 0.18s ease;
+  /* A decisive start with a soft landing, rather than the same speed throughout —
+     0.18s ease was too quick to read as movement at all. */
+  transition: margin-left 0.34s cubic-bezier(0.32, 0.72, 0, 1);
 }
 #sidebar.collapsed { margin-left: -265px; }
+
+/* The panel is not a rigid slab: its contents leave slightly ahead of the edge and
+   drift with it, so the sidebar reads as departing rather than being cropped. */
+#sidebar > * {
+  transition: opacity 0.2s ease, transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+#sidebar.collapsed > * {
+  opacity: 0;
+  transform: translateX(-14px);
+}
+/* the rows closest to the leaving edge go first */
+#sidebar.collapsed .sb-nav:nth-of-type(1) { transition-delay: 0s; }
+#sidebar.collapsed .sb-nav:nth-of-type(2) { transition-delay: 0.02s; }
+#sidebar.collapsed .sb-nav:nth-of-type(3) { transition-delay: 0.04s; }
+
+/* The reopen button arrives as the panel finishes leaving, rather than popping in
+   at the same moment. Driven entirely by the sidebar's class. */
+#btn-expand {
+  display: none;
+  opacity: 0;
+  transform: translateX(-6px) scale(0.9);
+  transition: opacity 0.2s ease 0.14s,
+              transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1) 0.14s,
+              display 0.34s allow-discrete;
+}
+#sidebar.collapsed ~ #main #btn-expand {
+  display: inline-flex;
+  opacity: 1;
+  transform: none;
+}
+@starting-style {
+  #sidebar.collapsed ~ #main #btn-expand { opacity: 0; transform: translateX(-6px) scale(0.9); }
+}
 
 /* Top row: collapse on the left, search on the right, and the whole strip is the
    window drag handle since there is no title bar of our own. */
@@ -554,9 +589,23 @@ input, textarea, select {
   align-items: center;
   gap: 14px;
   padding-bottom: 28px;
-  animation: fadeIn 0.35s ease both;
+  opacity: 1;
+  transform: none;
+  /* `display` is discrete, so it normally snaps. allow-discrete holds the element
+     visible until the fade finishes, and @starting-style gives it somewhere to
+     animate from on the way in. */
+  transition: opacity 0.26s ease,
+              transform 0.34s cubic-bezier(0.32, 0.72, 0, 1),
+              display 0.34s allow-discrete;
 }
-#sidebar.collapsed ~ #main #view-chat.empty #empty-state { display: none; }
+@starting-style {
+  #view-chat.empty #empty-state { opacity: 0; transform: translateY(-12px); }
+}
+#sidebar.collapsed ~ #main #view-chat.empty #empty-state {
+  display: none;
+  opacity: 0;
+  transform: translateY(-12px);
+}
 #empty-state { display: none; }   /* never shown once a conversation has started */
 
 .greeting-mark { color: var(--accent); display: flex; }
@@ -1684,8 +1733,16 @@ details.think .think-body {
 /* --- surfaces --- */
 
 /* switching theme cross-fades rather than snapping between palettes */
-body, #sidebar, #composer, .msg-user .bubble, .row-menu {
+/* #sidebar is deliberately NOT in this list. `transition` is a shorthand, so
+   naming it here reset the margin-left slide declared far above — the panel had
+   been snapping open ever since this rule was added. It gets both below. */
+body, #composer, .msg-user .bubble, .row-menu {
   transition: background-color 0.22s ease, color 0.22s ease, border-color 0.22s ease;
+}
+#sidebar {
+  transition: margin-left 0.34s cubic-bezier(0.32, 0.72, 0, 1),
+              background-color 0.22s ease,
+              border-color 0.22s ease;
 }
 .view { animation: fadeIn 0.22s ease both; }
 

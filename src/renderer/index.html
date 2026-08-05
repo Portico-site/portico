@@ -55,7 +55,9 @@
 
     <main id="main">
       <header id="main-header">
-        <button id="btn-expand" class="icon-btn" title="Open sidebar" hidden></button>
+        <!-- shown by CSS while the sidebar is collapsed, so it cannot fall out of
+             step with the sidebar's actual state -->
+        <button id="btn-expand" class="icon-btn" title="Open sidebar"></button>
         <div id="header-title">New chat</div>
         <div class="header-actions">
           <button id="btn-panel" class="icon-btn" title="Chat settings"></button>

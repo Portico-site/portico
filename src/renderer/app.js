@@ -2817,14 +2817,11 @@ async function init() {
     p.classList.toggle('closed');
     $('btn-panel').classList.toggle('on', !p.classList.contains('closed'));
   });
-  $('btn-collapse').addEventListener('click', () => {
-    $('sidebar').classList.add('collapsed');
-    $('btn-expand').hidden = false;
-  });
-  $('btn-expand').addEventListener('click', () => {
-    $('sidebar').classList.remove('collapsed');
-    $('btn-expand').hidden = true;
-  });
+  // Only the class is set. Whether the reopen button shows, and whether the
+  // greeting shows, both follow from it in CSS — so there is one piece of state
+  // rather than three that can disagree.
+  $('btn-collapse').addEventListener('click', () => $('sidebar').classList.add('collapsed'));
+  $('btn-expand').addEventListener('click', () => $('sidebar').classList.remove('collapsed'));
   document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
     S.tab = t.dataset.tab;
     renderModelsView();
