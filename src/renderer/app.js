@@ -92,49 +92,6 @@ function baseName(p) {
   return p ? p.split(/[\\/]/).pop().replace(/\.gguf$/i, '') : '';
 }
 
-// Who made a model, worked out from its file name.
-//
-// These are lettermarks in each maker's colour rather than their actual logos:
-// company logos are trademarks, and bundling them into an app you may distribute
-// is a licensing question rather than a design one. A coloured initial identifies
-// the family just as fast, ships with the app and works offline.
-//
-// Order matters. "DeepSeek-R1-Distill-Qwen-7B" is DeepSeek's model built on Qwen,
-// and "Hermes-3-Llama-3.1" is Nous's built on Llama — so the maker of the model
-// has to be tested before the architecture it was derived from.
-const MODEL_BRANDS = [
-  { id: 'deepseek', re: /deepseek/i,               label: 'DS', name: 'DeepSeek',  color: '#4d6bfe' },
-  { id: 'hermes',   re: /hermes|nous/i,            label: 'N',  name: 'Nous',      color: '#6b7280' },
-  { id: 'qwen',     re: /qwen|qwq/i,               label: 'Q',  name: 'Alibaba',   color: '#7b5cff' },
-  { id: 'llama',    re: /llama|meta-/i,            label: 'L',  name: 'Meta',      color: '#0866ff' },
-  { id: 'phi',      re: /^phi|[-_]phi/i,           label: 'φ',  name: 'Microsoft', color: '#0f7bc4' },
-  { id: 'gemma',    re: /gemma|gemini/i,           label: 'G',  name: 'Google',    color: '#1a8e5f' },
-  { id: 'mistral',  re: /mistral|mixtral|ministral|codestral|nemo/i, label: 'M', name: 'Mistral', color: '#fa5111' },
-  { id: 'granite',  re: /granite/i,                label: 'IB', name: 'IBM',       color: '#0f62fe' },
-  { id: 'olmo',     re: /olmo/i,                   label: 'AI', name: 'Allen AI',  color: '#f0529c' },
-  { id: 'aya',      re: /aya|command[-_]?r|cohere/i, label: 'C', name: 'Cohere',   color: '#39594d' },
-  { id: 'gptoss',   re: /gpt[-_]?oss/i,            label: 'O',  name: 'OpenAI',    color: '#10a37f' },
-  { id: 'yi',       re: /^yi[-_]/i,                label: 'Y',  name: '01.AI',     color: '#00a3a3' },
-  // image and speech engines are not chat models but appear in the same lists
-  { id: 'sd',       re: /^sd|stable[-_]?diffusion|dreamshaper|juggernaut|realistic[-_]vision/i,
-    label: 'SD', name: 'Stable Diffusion', color: '#9b5de5' },
-  { id: 'whisper',  re: /whisper/i,                label: 'W',  name: 'Whisper',   color: '#6366f1' },
-];
-
-function modelBrand(nameOrPath) {
-  const n = String(nameOrPath || '').split(/[\\/]/).pop();
-  return MODEL_BRANDS.find((b) => b.re.test(n))
-    || { id: 'other', label: '•', name: 'Other', color: 'var(--text-faint)' };
-}
-
-// A small square badge. Used in the model picker and in the Models lists so the
-// two places identify a model the same way.
-function brandBadge(nameOrPath, cls = '') {
-  const b = modelBrand(nameOrPath);
-  return `<span class="brand-badge ${cls}" style="--brand:${b.color}" title="${esc(b.name)}"`
-    + ` aria-hidden="true">${esc(b.label)}</span>`;
-}
-
 // "Qwen2.5-Coder-7B-Instruct-Q4_K_M" -> "Qwen2.5 Coder 7B".
 // The status strip wants a name a person would say out loud, not the filename:
 // the quantisation and the word "Instruct" are on every model and distinguish
