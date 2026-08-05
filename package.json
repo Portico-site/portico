@@ -12,7 +12,8 @@
     "dist:mac": "electron-builder --mac",
     "dist:linux": "electron-builder --linux",
     "stage": "node scripts/stage-release.js",
-    "release": "npm run dist && npm run stage"
+    "release": "npm run dist && npm run stage",
+    "set-domain": "node scripts/set-site-domain.js"
   },
   "dependencies": {
     "electron-updater": "^6.8.9",
@@ -79,13 +80,31 @@
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["arm64", "x64"] },
-        { "target": "zip", "arch": ["arm64", "x64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
       "category": "public.app-category.productivity",
       "extraResources": [
-        { "from": "resources/llama-mac-${arch}", "to": "llama" },
-        { "from": "resources/whisper-mac-${arch}", "to": "whisper" }
+        {
+          "from": "resources/llama-mac-${arch}",
+          "to": "llama"
+        },
+        {
+          "from": "resources/whisper-mac-${arch}",
+          "to": "whisper"
+        }
       ]
     },
     "linux": {
@@ -97,8 +116,14 @@
       "maintainer": "jolop",
       "icon": "resources/icon-512.png",
       "extraResources": [
-        { "from": "resources/llama-linux-${arch}", "to": "llama" },
-        { "from": "resources/whisper-linux-${arch}", "to": "whisper" }
+        {
+          "from": "resources/llama-linux-${arch}",
+          "to": "llama"
+        },
+        {
+          "from": "resources/whisper-linux-${arch}",
+          "to": "whisper"
+        }
       ]
     }
   }
