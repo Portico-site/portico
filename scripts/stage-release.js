@@ -9,6 +9,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const ROOT = path.join(__dirname, '..');
 const pkg = require(path.join(ROOT, 'package.json'));
@@ -46,6 +47,24 @@ console.log(`\n  Staged Portico ${VERSION}`);
 console.log(`    installer : ${built}  (${mb(built)})`);
 console.log(`    website   : ${dest}`);
 if (removed) console.log(`    removed   : ${removed} older installer(s)`);
+
+// The pages publish a checksum for people who want to verify the download. NSIS
+// output is not reproducible, so every rebuild changes it — left to a human it goes
+// stale, and a stale checksum reads as a tampered file. Rewrite it from the bytes.
+const SITE = path.join(ROOT, '..', 'portico-site');
+const sha = crypto.createHash('sha256').update(fs.readFileSync(dest)).digest('hex').toUpperCase();
+const sizeMB = Math.round(fs.statSync(dest).size / 1048576);
+let stamped = 0;
+for (const p of fs.readdirSync(SITE).filter((f) => f.endsWith('.html'))) {
+  const file = path.join(SITE, p);
+  const before = fs.readFileSync(file, 'utf8');
+  const after = before
+    .replace(/(sha256:\s*')[0-9A-Fa-f]{64}(')/g, `$1${sha}$2`)
+    .replace(/(sizeMB:\s*)\d+/g, `$1${sizeMB}`);
+  if (after !== before) { fs.writeFileSync(file, after); stamped++; }
+}
+console.log(`    sha256    : ${sha}`);
+console.log(`    stamped   : ${stamped} page(s) updated with checksum and size`);
 
 // the site links by filename, so a mismatch would 404 for every visitor
 const pages = fs.readdirSync(path.join(ROOT, '..', 'portico-site')).filter((f) => f.endsWith('.html'));
