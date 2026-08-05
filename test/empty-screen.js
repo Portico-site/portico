@@ -45,16 +45,17 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
   console.log('\n========== PANTALLA VACÍA ==========\n');
 
-  // The greeting follows the sidebar: open shows it, collapsed strips the screen
-  // back to the message box alone.
-  // The greeting fades with `display ... allow-discrete`, which holds the old value
-  // until the transition ends — and an occluded Electron window never composites,
-  // so it never ends here. Jump to the settled state before measuring.
+  // The greeting follows the sidebar: open shows it, collapsed collapses it to
+  // nothing. Its height animates across two elements — the grid row on the outer,
+  // the padding on the inner — and an occluded Electron window never composites,
+  // so both must be settled before measuring or the read is mid-flight.
   const look = async () => JSON.parse(await c.eval(`(() => {
     const es = document.querySelector('#empty-state');
+    const gi = es.querySelector('.greeting-inner');
     const view = document.querySelector('#view-chat');
     const wrap = document.querySelector('#composer-wrap');
     es.style.transition = 'none';
+    if (gi) gi.style.transition = 'none';
     void document.body.offsetWidth;
     const v = view.getBoundingClientRect();
     const w = wrap.getBoundingClientRect();
@@ -68,6 +69,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       justify: getComputedStyle(view).justifyContent
     };
     es.style.transition = '';
+    if (gi) gi.style.transition = '';
     return JSON.stringify(out);
   })()`));
 
@@ -80,7 +82,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const open = await look();
   check(open.isEmpty, 'the view is in its empty state');
   check(open.justify === 'center', 'the view centres its contents', `justify-content: ${open.justify}`);
-  check(open.display !== 'none' && open.greetH > 80, 'with the sidebar open the greeting shows',
+  check(open.greetH > 80, 'with the sidebar open the greeting shows',
     `${open.greetH}px tall`);
   // the greeting sits above the composer, so what should be centred is the pair —
   // the composer alone is expected to sit lower by exactly the greeting's height
@@ -90,13 +92,15 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
   await setSidebar(true);
   const shut = await look();
-  check(shut.display === 'none', 'collapsing the sidebar hides the greeting');
+  // it stays in the DOM at zero height now, so height is the honest signal
+  check(shut.greetH === 0, 'collapsing the sidebar collapses the greeting away',
+    `${shut.greetH}px tall`);
   check(Math.abs(shut.above - shut.below) <= 8, 'the composer re-centres on its own',
     `${shut.above}px above vs ${shut.below}px below`);
 
   await setSidebar(false);
   const again = await look();
-  check(again.display !== 'none' && again.greetH > 80, 'reopening brings it back', `${again.greetH}px tall`);
+  check(again.greetH > 80, 'reopening brings it back', `${again.greetH}px tall`);
 
   // and it must never come back once there is a conversation
   await c.eval(`document.querySelector('#view-chat').classList.remove('empty')`);

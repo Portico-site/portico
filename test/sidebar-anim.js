@@ -82,22 +82,24 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const settled = () => c.eval(`(() => {
     const es = document.querySelector('#empty-state');
     const bx = document.querySelector('#btn-expand');
-    for (const el of [es, bx]) { el.style.transition = 'none'; }
+    const gi = es.querySelector('.greeting-inner');
+    for (const el of [es, bx, gi]) { if (el) el.style.transition = 'none'; }
     void document.body.offsetWidth;
     const out = {
       greeting: getComputedStyle(es).display,
+      greetH: Math.round(es.getBoundingClientRect().height),
       expand: getComputedStyle(bx).display,
       expandOpacity: getComputedStyle(bx).opacity,
       hasHiddenAttr: bx.hasAttribute('hidden'),
       collapsed: document.querySelector('#sidebar').classList.contains('collapsed')
     };
-    for (const el of [es, bx]) { el.style.transition = ''; }
+    for (const el of [es, bx, gi]) { if (el) el.style.transition = ''; }
     return JSON.stringify(out);
   })()`);
 
   // 4. open state
   const open = JSON.parse(await settled());
-  check(open.greeting !== 'none', 'open: the greeting is shown');
+  check(open.greetH > 80, 'open: the greeting is shown', `${open.greetH}px tall`);
   check(open.expand === 'none', 'open: the reopen button is hidden');
 
   // 5. collapse via the real button, and let it settle
@@ -105,7 +107,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   await wait(700);
   const shut = JSON.parse(await settled());
   check(shut.collapsed, 'the collapse button collapses it');
-  check(shut.greeting === 'none', 'collapsed: the greeting is gone');
+  check(shut.greetH === 0, 'collapsed: the greeting is collapsed away', `${shut.greetH}px tall`);
   check(shut.expand !== 'none', 'collapsed: the reopen button is there', `display: ${shut.expand}`);
   check(!shut.hasHiddenAttr, 'the button is driven by CSS, not a hidden attribute');
 
@@ -114,7 +116,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   await wait(700);
   const back = JSON.parse(await settled());
   check(!back.collapsed, 'the reopen button reopens it');
-  check(back.greeting !== 'none', 'reopened: the greeting is back');
+  check(back.greetH > 80, 'reopened: the greeting is back', `${back.greetH}px tall`);
   check(back.expand === 'none', 'reopened: the reopen button steps aside again');
 
   console.log(`\n==============================================`);

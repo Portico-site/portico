@@ -183,14 +183,14 @@ input, textarea, select {
   flex-direction: column;
   /* A decisive start with a soft landing, rather than the same speed throughout —
      0.18s ease was too quick to read as movement at all. */
-  transition: margin-left 0.34s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: margin-left 0.34s cubic-bezier(0.4, 0, 0.2, 1);
 }
 #sidebar.collapsed { margin-left: -265px; }
 
 /* The panel is not a rigid slab: its contents leave slightly ahead of the edge and
    drift with it, so the sidebar reads as departing rather than being cropped. */
 #sidebar > * {
-  transition: opacity 0.2s ease, transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: opacity 0.2s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 #sidebar.collapsed > * {
   opacity: 0;
@@ -583,28 +583,42 @@ input, textarea, select {
    bare screen, so it goes too — and the composer re-centres on its own, because the
    whole group is what gets centred. #main is a sibling of #sidebar, which is what
    lets the sidebar's state reach in here. */
+/* The greeting collapses its height rather than being switched off.
+   `display: none` removed all 132px in a single frame, which threw the composer
+   down by half that — the jump you could see. A grid row animating 1fr -> 0fr
+   interpolates properly, so the composer travels with it. */
 #view-chat.empty #empty-state {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.24s ease 0.06s;
+}
+#empty-state > .greeting-inner {
+  overflow: hidden;          /* what makes the row collapse clip rather than squash */
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
   padding-bottom: 28px;
-  opacity: 1;
-  transform: none;
-  /* `display` is discrete, so it normally snaps. allow-discrete holds the element
-     visible until the fade finishes, and @starting-style gives it somewhere to
-     animate from on the way in. */
-  transition: opacity 0.26s ease,
-              transform 0.34s cubic-bezier(0.32, 0.72, 0, 1),
-              display 0.34s allow-discrete;
-}
-@starting-style {
-  #view-chat.empty #empty-state { opacity: 0; transform: translateY(-12px); }
+  min-height: 0;
+  transform: translateY(0);
+  transition: transform 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+              padding-bottom 0.38s cubic-bezier(0.4, 0, 0.2, 1);
 }
 #sidebar.collapsed ~ #main #view-chat.empty #empty-state {
-  display: none;
+  grid-template-rows: 0fr;
   opacity: 0;
-  transform: translateY(-12px);
+  transition: grid-template-rows 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.2s ease;   /* fades out first, so nothing shows while clipping */
+}
+/* Drifts up as it closes, and gives up its padding on the way.
+   `0fr` resolves to minmax(auto, 0fr), so the track can never shrink below the
+   item's own padding — 28px of it survived the collapse and left the composer
+   that far off centre. Animating the padding away closes the row completely. */
+#sidebar.collapsed ~ #main #view-chat.empty #empty-state > .greeting-inner {
+  transform: translateY(-10px);
+  padding-bottom: 0;
 }
 #empty-state { display: none; }   /* never shown once a conversation has started */
 
@@ -1740,7 +1754,7 @@ body, #composer, .msg-user .bubble, .row-menu {
   transition: background-color 0.22s ease, color 0.22s ease, border-color 0.22s ease;
 }
 #sidebar {
-  transition: margin-left 0.34s cubic-bezier(0.32, 0.72, 0, 1),
+  transition: margin-left 0.34s cubic-bezier(0.4, 0, 0.2, 1),
               background-color 0.22s ease,
               border-color 0.22s ease;
 }
