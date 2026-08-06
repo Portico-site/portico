@@ -65,6 +65,11 @@ function defaultSettings() {
     // Real effect on the request, not a label — see applyEffort() in the renderer.
     effort: 'balanced',
 
+    // Reasoning models think out loud before answering. On by default because that
+    // is what those models are for; turning it off only works on families that read
+    // a switch (Qwen3, QwQ) — R1 thinks whatever you ask of it.
+    thinking: true,
+
     // Fastest device as actually measured by Settings → Test graphics cards.
     // Overrides the discrete-first guess, which can be badly wrong on laptops
     // whose discrete GPU has been powered down by the driver.

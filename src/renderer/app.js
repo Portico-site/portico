@@ -4,6 +4,7 @@ const $ = (id) => document.getElementById(id);
 
 const ICONS = {
   sidebar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg>',
+  think: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2a4.5 4.5 0 0 0-4.4 5.5A4 4 0 0 0 4 15a4 4 0 0 0 3 3.9A3.5 3.5 0 0 0 12 20V4a2 2 0 0 0-2.5-2z"/><path d="M14.5 2a4.5 4.5 0 0 1 4.4 5.5A4 4 0 0 1 20 15a4 4 0 0 1-3 3.9A3.5 3.5 0 0 1 12 20"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>',
   up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
@@ -136,15 +137,47 @@ marked.use({
   },
 });
 
+// Which models reason out loud, and which of those can be told not to.
+//
+// Some families always think — R1 distils the behaviour into the weights and there is
+// no switch. Qwen3 and QwQ read /no_think and /think as soft switches in the message,
+// so for those the toggle is real rather than a request the model may ignore.
+const THINKS = /deepseek[-_ ]?r1|\br1\b|qwq|qwen ?3|qwen3|magistral|phi[-_ ]?4[-_ ]?reasoning|marco[-_ ]?o1|skywork[-_ ]?o1|exaone.*deep/i;
+const THINK_SWITCHABLE = /qwq|qwen ?3|qwen3/i;
+
+function modelThinks(name) { return THINKS.test(String(name || '')); }
+function thinkingSwitchable(name) { return THINK_SWITCHABLE.test(String(name || '')); }
+
+/** Whatever model the next message will actually go to. */
+function currentModelPath() {
+  const sel = $('composer-model');
+  return (S.server && S.server.modelPath)
+    || (sel && sel.value && sel.value !== '__none' ? sel.value : '');
+}
+
+/** Characters the model spent inside <think> blocks, across a whole reply. */
+function thinkingChars(text) {
+  let n = 0;
+  for (const m of String(text || '').matchAll(/<think>([\s\S]*?)(?:<\/think>|$)/g)) n += m[1].length;
+  return n;
+}
+
 function renderMd(md) {
   // Reasoning models (DeepSeek R1, Qwen3) wrap their inner monologue in <think> tags —
   // show it as a collapsible block, open while it's still streaming, collapsed once done.
+  //
+  // The summary carries the cost of that thinking, because on a local model it is the
+  // part people are actually paying for: a long think is a slow answer and a smaller
+  // context window for everything that follows.
   let src = md || '';
   src = src.replace(/<think>([\s\S]*?)(<\/think>|$)/g, (m0, inner, close) => {
     const body = inner.trim();
     if (!body && close) return '\n\n';
+    const label = close
+      ? `Thought for ${tok(body.length).toLocaleString()} tokens`
+      : `Thinking… ${tok(body.length).toLocaleString()} tokens`;
     return '\n\n<details class="think"' + (close ? '' : ' open') +
-      '><summary>Thinking…</summary><div class="think-body">' + esc(body) + '</div></details>\n\n';
+      '><summary>' + esc(label) + '</summary><div class="think-body">' + esc(body) + '</div></details>\n\n';
   });
   return DOMPurify.sanitize(marked.parse(src));
 }
@@ -2430,6 +2463,17 @@ function buildApiMessages(history) {
     }
   }
 
+  // Turning thinking off is a switch the model reads, not an instruction we hope it
+  // follows — and only Qwen3 and QwQ have one. It goes on the message rather than in
+  // the system block because that is where those models look for it, and it is added
+  // here so it never appears in what you typed.
+  if (S.settings && S.settings.thinking === false && out.length) {
+    const last = out[out.length - 1];
+    if (thinkingSwitchable(currentModelPath()) && typeof last.content === 'string') {
+      last.content += ' /no_think';
+    }
+  }
+
   return { messages: out, used, budgetChars, trimmed };
 }
 
@@ -2522,6 +2566,7 @@ function renderStatusStrip() {
   modelSeg.title = path ? baseName(path) : 'No model loaded';   // full filename on hover
 
   $('st-effort').querySelector('.st-val').textContent = currentEffort().label;
+  renderThinkButton(path);
 
   const snap = contextSnapshot();
   const seg = $('st-tokens');
@@ -2530,6 +2575,46 @@ function renderStatusStrip() {
   seg.classList.toggle('hot', snap.pct > 85 || snap.trimmed > 0);
   seg.title = `${snap.usedTok.toLocaleString()} of ~${snap.budgetTok.toLocaleString()} tokens of conversation room used`
     + (snap.trimmed ? ` · ${snap.trimmed} older message(s) dropped` : '');
+}
+
+// The thinking toggle. Hidden entirely on models that do not reason out loud, since
+// a control that does nothing is worse than no control.
+//
+// It is deliberately not a plain on/off everywhere: on DeepSeek R1 the behaviour is
+// baked into the weights and there is no switch, so the button says so and stays put
+// rather than pretending to turn something off.
+function renderThinkButton(path) {
+  const btn = $('btn-think');
+  if (!btn) return;
+  const thinks = modelThinks(path);
+  btn.hidden = !thinks;
+  if (!thinks) return;
+
+  const on = S.settings ? S.settings.thinking !== false : true;
+  const switchable = thinkingSwitchable(path);
+  btn.innerHTML = ICONS.think + '<span>Thinking</span>';
+  btn.classList.toggle('on', on || !switchable);
+  btn.classList.toggle('locked', !switchable);
+  btn.title = switchable
+    ? (on ? 'Thinking on — the model reasons before answering. Click to turn off.'
+          : 'Thinking off — answers come straight out. Click to turn on.')
+    : 'This model always reasons before answering; it has no switch.';
+}
+
+function wireThinkButton() {
+  const btn = $('btn-think');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const path = currentModelPath();
+    if (!thinkingSwitchable(path)) {
+      toast('This model always thinks — there is no way to turn it off');
+      return;
+    }
+    const next = !(S.settings.thinking !== false);
+    S.settings = await api.saveSettings({ thinking: next });
+    renderThinkButton(path);
+    toast(next ? 'Thinking on' : 'Thinking off');
+  });
 }
 
 function wireStatusStrip() {
@@ -2569,6 +2654,21 @@ function openTokenPanel(anchor) {
   const lastM = b && b.messages ? b.messages[b.messages.length - 1] : null;
   const nowChars = lastM ? (typeof lastM.content === 'string' ? lastM.content.length : 600) : 0;
   const histChars = Math.max(0, (b ? b.used : 0) - sysChars - nowChars);
+
+  // What reasoning has cost so far in this conversation. Worth its own line: on a
+  // local model a long think is the difference between a quick answer and a slow one,
+  // and it is spent before a single word of the reply appears.
+  const thinkStats = (() => {
+    const replies = (S.chat && S.chat.messages || []).filter((m) => m.role === 'assistant' && m.content);
+    let think = 0, all = 0, n = 0;
+    for (const m of replies) {
+      const t = thinkingChars(m.content);
+      if (t) n++;
+      think += t;
+      all += m.content.length;
+    }
+    return { chars: think, replies: n, pct: all ? Math.round((think / all) * 100) : 0 };
+  })();
   const total = Math.max(1, b ? b.used : 1);
   const w = (n) => (b ? (n / total) * Math.min(100, snap.pct) : 0);
 
@@ -2589,6 +2689,7 @@ function openTokenPanel(anchor) {
       <span><i class="b-now" style="background:var(--warn)"></i>This turn ${tok(nowChars)}</span>
     </div>
     <div class="tok-row"><span>Used</span><b>${snap.usedTok.toLocaleString()} / ${snap.budgetTok.toLocaleString()} (${snap.pct}%)</b></div>
+    ${thinkStats.replies ? `<div class="tok-row"><span>Spent thinking</span><b title="Across ${thinkStats.replies} repl${thinkStats.replies > 1 ? 'ies' : 'y'} in this chat">${tok(thinkStats.chars).toLocaleString()} tokens (${thinkStats.pct}% of replies)</b></div>` : ''}
     ${snap.trimmed ? `<div class="tok-row"><span style="color:var(--warn)">Dropped from memory</span><b style="color:var(--warn)">${snap.trimmed} message${snap.trimmed > 1 ? 's' : ''}</b></div>` : ''}
     <div class="tok-sep"></div>
     <label for="tok-ctx">Context size</label>
@@ -2597,7 +2698,15 @@ function openTokenPanel(anchor) {
     </select>
     <label for="tok-max">Longest reply</label>
     <select id="tok-max">
-      ${[256, 512, 1024, 2048, 4096].map((v) => `<option value="${v}" ${s.maxTokens === v ? 'selected' : ''}>${v.toLocaleString()} tokens</option>`).join('')}
+      ${[256, 512, 1024, 2048, 4096, 6144, 8192, 12288, 16384, 24576, 32768].map((v) => {
+        // A reply can never take more than half the window, or it would crowd out the
+        // conversation it is answering. Rather than silently clamping — which made the
+        // number in the box a lie — the ones that cannot apply say why.
+        const cap = Math.floor((s.contextSize || 4096) / 2);
+        const over = v > cap;
+        return `<option value="${v}" ${s.maxTokens === v ? 'selected' : ''} ${over ? 'disabled' : ''}>`
+          + `${v.toLocaleString()} tokens${over ? ' — needs a bigger context' : ''}</option>`;
+      }).join('')}
     </select>
     <div class="tok-note">Bigger context remembers more but uses more memory on your
       graphics card, and takes effect the next time the model loads.</div>`;
@@ -2912,6 +3021,7 @@ async function init() {
     if (again && !S.generating) { runImageGeneration(again.dataset.prompt); return; }
     if (e.target.closest('.img-cancel')) { api.cancelImage(); toast('Stopping image generation…'); }
   });
+  wireThinkButton();
   $('btn-search').innerHTML = ICONS.globe + '<span>Search</span>';
   $('btn-search').addEventListener('click', async () => { await toggleSearch(); if (!$('search-menu').hidden) renderSearchMenu(); });
   $('search-wrap').addEventListener('mouseenter', showSearchMenu);

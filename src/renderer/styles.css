@@ -1805,3 +1805,10 @@ button:focus:not(:focus-visible) { outline: none; }
   padding: 9px 11px;
   margin-top: 4px;
 }
+
+/* The thinking toggle sits with the search pill. "locked" is for models whose
+   reasoning is baked into the weights: it reads as on, and says so on hover,
+   rather than offering a switch that would do nothing. */
+#btn-think.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+#btn-think.locked { cursor: default; opacity: 0.75; }
+#btn-think.locked:hover { background: transparent; }
