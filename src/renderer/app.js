@@ -2592,6 +2592,23 @@ function renderThinkButton(path) {
 
   const on = S.settings ? S.settings.thinking !== false : true;
   const switchable = thinkingSwitchable(path);
+
+  // Assigned here rather than wired once at startup: the button is redrawn every
+  // time the strip refreshes, and a listener attached during init depended on
+  // ordering that did not hold. onclick replaces rather than stacks, so this is
+  // safe to run on every redraw.
+  btn.onclick = async () => {
+    const p = currentModelPath();
+    if (!thinkingSwitchable(p)) {
+      toast('This model always thinks — there is no way to turn it off');
+      return;
+    }
+    const next = !(S.settings.thinking !== false);
+    S.settings = await api.saveSettings({ thinking: next });
+    renderThinkButton(p);
+    toast(next ? 'Thinking on' : 'Thinking off');
+  };
+
   btn.innerHTML = ICONS.think + '<span>Thinking</span>';
   btn.classList.toggle('on', on || !switchable);
   btn.classList.toggle('locked', !switchable);
@@ -2601,21 +2618,6 @@ function renderThinkButton(path) {
     : 'This model always reasons before answering; it has no switch.';
 }
 
-function wireThinkButton() {
-  const btn = $('btn-think');
-  if (!btn) return;
-  btn.addEventListener('click', async () => {
-    const path = currentModelPath();
-    if (!thinkingSwitchable(path)) {
-      toast('This model always thinks — there is no way to turn it off');
-      return;
-    }
-    const next = !(S.settings.thinking !== false);
-    S.settings = await api.saveSettings({ thinking: next });
-    renderThinkButton(path);
-    toast(next ? 'Thinking on' : 'Thinking off');
-  });
-}
 
 function wireStatusStrip() {
   $('st-model').addEventListener('click', (e) => {
@@ -2689,7 +2691,7 @@ function openTokenPanel(anchor) {
       <span><i class="b-now" style="background:var(--warn)"></i>This turn ${tok(nowChars)}</span>
     </div>
     <div class="tok-row"><span>Used</span><b>${snap.usedTok.toLocaleString()} / ${snap.budgetTok.toLocaleString()} (${snap.pct}%)</b></div>
-    ${thinkStats.replies ? `<div class="tok-row"><span>Spent thinking</span><b title="Across ${thinkStats.replies} repl${thinkStats.replies > 1 ? 'ies' : 'y'} in this chat">${tok(thinkStats.chars).toLocaleString()} tokens (${thinkStats.pct}% of replies)</b></div>` : ''}
+    ${thinkStats.replies ? `<div class="tok-row"><span>Spent thinking</span><b title="${thinkStats.pct}% of all reply text, across ${thinkStats.replies} repl${thinkStats.replies > 1 ? 'ies' : 'y'} in this chat">${tok(thinkStats.chars).toLocaleString()} tokens</b></div>` : ''}
     ${snap.trimmed ? `<div class="tok-row"><span style="color:var(--warn)">Dropped from memory</span><b style="color:var(--warn)">${snap.trimmed} message${snap.trimmed > 1 ? 's' : ''}</b></div>` : ''}
     <div class="tok-sep"></div>
     <label for="tok-ctx">Context size</label>
@@ -3021,7 +3023,6 @@ async function init() {
     if (again && !S.generating) { runImageGeneration(again.dataset.prompt); return; }
     if (e.target.closest('.img-cancel')) { api.cancelImage(); toast('Stopping image generation…'); }
   });
-  wireThinkButton();
   $('btn-search').innerHTML = ICONS.globe + '<span>Search</span>';
   $('btn-search').addEventListener('click', async () => { await toggleSearch(); if (!$('search-menu').hidden) renderSearchMenu(); });
   $('search-wrap').addEventListener('mouseenter', showSearchMenu);
