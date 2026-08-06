@@ -12,6 +12,7 @@ const voice = require('./voice');
 const logger = require('./logger');
 const updater = require('./updater');
 const engineClient = require('./engine-client');
+const hardware = require('./hardware');
 const { devEngineDir } = require('./platform');
 const pkg = require('../../package.json');
 
@@ -26,6 +27,9 @@ let store = null;
 let server = null;
 const downloader = new Downloader();
 
+// Starting values only. Anything that depends on how much memory, how many cores or
+// what card the machine has is worked out on first run by applyHardwareDefaults()
+// below — these are just what to fall back to if that cannot run.
 function defaultSettings() {
   return {
     modelsDir: isDev
@@ -54,8 +58,8 @@ function defaultSettings() {
     imageModel: '',        // empty = use the first image model found
     imageSteps: 0,         // 0 = auto (let the model's preset decide)
     imageSize: 0,          // 0 = auto
-    imageQuant: 'q8_0',    // fp16 weights overflow a 4 GB card; q8_0 fits in ~1.7 GB
-    imageDevice: 'vulkan0',
+    imageQuant: 'q8_0',    // raised to fp16 on first run when the card has room
+    imageDevice: 'auto',   // resolved to the best detected adapter, not a fixed index
 
     // How hard the model works before answering: 'quick' | 'balanced' | 'deep'.
     // Real effect on the request, not a label — see applyEffort() in the renderer.
@@ -66,6 +70,14 @@ function defaultSettings() {
     // whose discrete GPU has been powered down by the driver.
     measuredDevice: '',
     deviceBenchmark: null,   // [{id, name, tps, error}] from the last test
+
+    // ---------- how much of the machine to use ----------
+    // 'auto' follows what was detected. 'manual' hands the budget to the user, which
+    // matters when detection is wrong — a laptop GPU the driver has powered down
+    // still reports its full VRAM — or when the machine is shared with other work.
+    hardwareMode: 'auto',    // auto | manual
+    memoryBudgetGB: 0,       // manual mode only; 0 means follow the detected budget
+    hardwareTuned: 0,        // schema version of the last automatic tuning
 
     // ---------- shared engine over the network ----------
     // Host mode: this machine runs the model and lets others on the LAN use it.
@@ -176,6 +188,74 @@ if (!app.requestSingleInstanceLock()) {
   });
 }
 
+// The schema version of the automatic tuning. Bumping it re-tunes existing installs
+// once, which is what you want when the rules themselves improve — but only for the
+// values the user has not since changed by hand.
+const HARDWARE_TUNING = 1;
+
+/**
+ * Fit the defaults to this machine.
+ *
+ * Runs once per tuning version. It writes only settings that still hold the value
+ * this app shipped with: if someone has deliberately set a 32k context on a small
+ * laptop, that is their call and it survives.
+ */
+async function applyHardwareDefaults() {
+  const s = store.getSettings();
+  if (s.hardwareTuned >= HARDWARE_TUNING) return;
+
+  const devices = await devicesOnce();
+  const p = hardware.profile(devices);
+  const rec = hardware.recommend(p);
+  const shipped = defaultSettings();
+
+  const patch = { hardwareTuned: HARDWARE_TUNING };
+  const takeover = (key, value) => {
+    if (s[key] === shipped[key]) patch[key] = value;
+  };
+  takeover('contextSize', rec.contextSize);
+  takeover('gpuLayers', rec.gpuLayers);
+  takeover('imageQuant', rec.imageQuant);
+  takeover('parallelSlots', rec.parallelSlots);
+
+  store.saveSettings(patch);
+  logger.info('tuned for this machine', {
+    machine: hardware.describe(p),
+    budgetGB: rec.budgetGB,
+    applied: Object.keys(patch).filter((k) => k !== 'hardwareTuned'),
+  });
+  send('hardware-tuned', { profile: p, recommended: rec });
+}
+
+// Listing devices spawns the engine binary and waits for it, which is far too slow
+// to do on every call — and the catalogue asks for this each time the Models view
+// opens. The set of graphics cards does not change while the app is running, so it
+// is read once and kept. RAM and cores are cheap and re-read every time.
+let cachedDevices = null;
+async function devicesOnce() {
+  if (cachedDevices) return cachedDevices;
+  cachedDevices = await server.listDevices().catch(() => []);
+  return cachedDevices;
+}
+
+/** Everything the interface needs to describe and adjust the machine's share. */
+async function hardwareInfo() {
+  const s = store.getSettings();
+  const devices = await devicesOnce();
+  const p = hardware.profile(devices);
+  const detected = hardware.budgetGB(p);
+  const manual = s.hardwareMode === 'manual' && Number(s.memoryBudgetGB) > 0;
+  const budget = manual ? Number(s.memoryBudgetGB) : detected;
+  return {
+    profile: p,
+    summary: hardware.describe(p),
+    detectedBudgetGB: detected,
+    budgetGB: budget,
+    mode: s.hardwareMode || 'auto',
+    recommended: hardware.recommend(p, budget),
+  };
+}
+
 // One-time migration: the app was briefly named PriStudio — carry chats/settings over.
 function migrateOldUserData() {
   const ud = app.getPath('userData');
@@ -222,6 +302,11 @@ app.whenReady().then(() => {
   server = new ServerManager({ binDir: llamaBinDir, port: store.getSettings().port });
   server.on('status', (s) => send('server-status', s));
   downloader.on('progress', (p) => send('download-progress', p));
+
+  // Fit the defaults to whatever machine this is. Deliberately not awaited: it has
+  // to ask the engine what cards exist, which takes a moment, and nothing on screen
+  // needs the answer before the window opens.
+  applyHardwareDefaults().catch((e) => logger.warn('hardware tuning failed', e));
 
   registerIpc();
   createWindow();
@@ -508,7 +593,9 @@ function registerIpc() {
   ipcMain.handle('save-settings', (e, patch) => store.saveSettings(patch));
 
   ipcMain.handle('list-models', () => scanModels(store.getSettings().modelsDir));
-  ipcMain.handle('get-catalog', () => {
+  ipcMain.handle('hardware-info', () => hardwareInfo());
+
+  ipcMain.handle('get-catalog', async () => {
     const dir = store.getSettings().modelsDir;
     // image checkpoints are .safetensors, so scanModels (gguf only) would miss them
     // scanModels hides projectors and only sees .gguf, so add the companions back:
@@ -521,11 +608,15 @@ function registerIpc() {
       ...projectors,
       ...voice.listModels(dir).map((m) => 'whisper/' + m.file),
     ]);
+    // Whether each entry fits is a fact about this machine, so it is worked out
+    // here rather than left to the wording of each description.
+    const budget = (await hardwareInfo().catch(() => null))?.budgetGB || 0;
     return CATALOG.map((m) => ({
       ...m,
       installed: installed.has(m.file),
       downloading: downloader.isActive(m.id),
       partial: fs.existsSync(path.join(store.getSettings().modelsDir, m.file + '.part')),
+      ...hardware.fit(m.sizeGB, budget),
     }));
   });
   ipcMain.handle('delete-model', async (e, modelPath) => {
@@ -547,7 +638,7 @@ function registerIpc() {
   ipcMain.handle('cancel-download', (e, id) => downloader.cancel(id));
 
   ipcMain.handle('server-status', () => server.status());
-  ipcMain.handle('list-devices', () => server.listDevices());
+  ipcMain.handle('list-devices', () => devicesOnce());
 
   // Measure each graphics device instead of assuming the discrete one is fastest.
   // The live engine is stopped first: two engines on one GPU would each report

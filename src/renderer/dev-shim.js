@@ -11,7 +11,7 @@
   }
 
   const settings = {
-    modelsDir: 'C:\\Users\\jolop\\Downloads\\PriStudio\\models',
+    modelsDir: '/models',
     port: 8033,
     device: 'auto',
     gpuLayers: 99,
@@ -47,7 +47,7 @@
   const model = {
     name: 'Llama-3.2-3B-Instruct-Q4_K_M',
     file: 'Llama-3.2-3B-Instruct-Q4_K_M.gguf',
-    path: 'C:\\Users\\jolop\\Downloads\\PriStudio\\models\\Llama-3.2-3B-Instruct-Q4_K_M.gguf',
+    path: '/models/Llama-3.2-3B-Instruct-Q4_K_M.gguf',
     sizeBytes: 2019377696,
     quant: 'Q4_K_M',
   };
@@ -132,9 +132,11 @@
     cancelDownload: async () => {},
     onDownloadProgress: () => {},
     serverStatus: async () => status,
+    // Two adapters of different classes, so the preview exercises the "which card"
+    // paths. Invented numbers — nothing here describes any particular machine.
     listDevices: async () => [
-      { id: 'Vulkan0', name: 'NVIDIA GeForce RTX 3050 Ti Laptop GPU', totalMiB: 3962, freeMiB: 3367 },
-      { id: 'Vulkan1', name: 'AMD Radeon(TM) Graphics', totalMiB: 8071, freeMiB: 7667 },
+      { id: 'Vulkan0', name: 'Discrete GPU', totalMiB: 8192, freeMiB: 7600 },
+      { id: 'Vulkan1', name: 'Integrated Graphics', totalMiB: 4096, freeMiB: 3800 },
     ],
     loadModel: async (p) => {
       status = { state: 'starting', modelPath: p, port: 8033 };
@@ -158,10 +160,10 @@
     onServerStatus: (cb) => { serverCb = cb; },
     benchmarkDevices: async () => ({
       devices: [
-        { id: 'Vulkan0', name: 'NVIDIA GeForce RTX 3050 Ti Laptop GPU', tps: 3.4 },
-        { id: 'Vulkan1', name: 'AMD Radeon(TM) Graphics', tps: 15.1 },
+        { id: 'Vulkan0', name: 'Discrete GPU', tps: 24.0 },
+        { id: 'Vulkan1', name: 'Integrated Graphics', tps: 9.5 },
       ],
-      best: 'Vulkan1',
+      best: 'Vulkan0',
     }),
     onDeviceBenchmarkProgress: () => {},
 

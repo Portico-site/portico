@@ -945,8 +945,18 @@ function renderModelsView() {
     if (m.installed) actions = '<span class="badge loaded">Installed</span>';
     else if (downloading) actions = '<button class="btn b-cancel">Cancel</button>';
     else actions = `<button class="btn primary b-dl">${m.partial ? 'Resume' : 'Download'}</button>`;
+    // Whether it fits is computed from the machine's real memory budget in the main
+    // process, not read out of the description text.
+    const FIT = {
+      comfortable: { label: 'Fits', cls: 'fit-ok', tip: 'Runs with room to spare on this machine.' },
+      tight: { label: 'Tight', cls: 'fit-tight', tip: 'Should load, but with little memory left over — expect it to be slow if anything else is open.' },
+      'too-large': { label: 'Too large', cls: 'fit-no', tip: 'Bigger than the memory available. It would swap to disk, if it loads at all.' },
+    };
+    const fit = FIT[m.verdict];
     card.innerHTML =
-      `<div class="info"><div class="name">${esc(m.name)}</div>` +
+      `<div class="info"><div class="name">${esc(m.name)}` +
+      (fit ? ` <span class="fit-badge ${fit.cls}" title="${esc(fit.tip)}">${fit.label}</span>` : '') +
+      `</div>` +
       `<div class="meta">~${m.sizeGB} GB · GGUF</div>` +
       `<div class="desc">${esc(m.desc)}</div>` +
       (downloading
@@ -1160,8 +1170,34 @@ async function testEngines() {
 async function renderSettingsView() {
   const s = S.settings;
   S.devices = await api.listDevices();
+  S.hw = await api.hardwareInfo().catch(() => null);
+  const hw = S.hw;
   const form = $('settings-form');
   form.innerHTML = `
+    <div class="field"><span>This machine</span>
+      <div class="hw-summary" id="s-hw-summary">${hw ? esc(hw.summary) : 'Detecting…'}</div>
+      <span class="hint">Portico sizes its defaults from this. Everything below can be
+        changed, and nothing here is sent anywhere.</span>
+    </div>
+    <label class="field"><span>Memory a model may use</span>
+      <select id="s-hw-mode">
+        <option value="auto" ${s.hardwareMode !== 'manual' ? 'selected' : ''}>
+          Match this computer${hw ? ` — ${hw.detectedBudgetGB} GB` : ''}
+        </option>
+        <option value="manual" ${s.hardwareMode === 'manual' ? 'selected' : ''}>Set it myself</option>
+      </select>
+      <span class="hint">Detection can be wrong — a laptop card the driver has powered
+        down still reports its full memory — and you may want to leave room for other work.</span>
+    </label>
+    <label class="field" id="s-hw-manual-box" ${s.hardwareMode === 'manual' ? '' : 'hidden'}>
+      <span>Budget <em id="s-budget-v">${Number(s.memoryBudgetGB) || (hw ? hw.detectedBudgetGB : 8)} GB</em></span>
+      <input id="s-budget" type="range" min="2" max="128" step="1"
+             value="${Number(s.memoryBudgetGB) || (hw ? hw.detectedBudgetGB : 8)}" />
+      <span class="hint">Sets which models are shown as fitting, and the context size
+        suggested for them. Raise it to plan for a bigger machine than this one.</span>
+    </label>
+
+    <div class="settings-sep">Engine and hardware</div>
     <label class="field"><span>Models folder</span>
       <div class="field-row">
         <input id="s-dir" type="text" value="${esc(s.modelsDir)}" spellcheck="false" />
@@ -1352,6 +1388,7 @@ async function renderSettingsView() {
   $('s-open').addEventListener('click', () => api.openModelsFolder());
   wireSharedEngine();
   wireDeviceBenchmark();
+  wireHardwareBudget();
   $('s-save').addEventListener('click', async () => {
     S.settings = await api.saveSettings({
       modelsDir: $('s-dir').value.trim(),
@@ -1374,6 +1411,8 @@ async function renderSettingsView() {
       remoteModelName: $('s-remotemodel').value.trim(),
       shareEngine: $('s-share').checked,
       parallelSlots: parseInt($('s-slots').value, 10) || 1,
+      hardwareMode: $('s-hw-mode').value,
+      memoryBudgetGB: $('s-hw-mode').value === 'manual' ? parseInt($('s-budget').value, 10) : 0,
     });
     // sharing changes the engine's bind address, which only takes effect on restart
     await api.applySharing();
@@ -1383,6 +1422,32 @@ async function renderSettingsView() {
     updatePill();
     toast('Settings saved');
   });
+}
+
+// The memory budget decides which models are offered as usable and how much context
+// is suggested, so changing it has to show its effect immediately rather than after
+// a save — otherwise the slider feels inert.
+function wireHardwareBudget() {
+  const mode = $('s-hw-mode');
+  const box = $('s-hw-manual-box');
+  const slider = $('s-budget');
+  const readout = $('s-budget-v');
+  if (!mode || !slider) return;
+
+  // A machine with 8 GB has no business being offered a 128 GB budget by default,
+  // but someone sizing up a future machine might want it — so the ceiling is
+  // generous and the detected value is only the starting point.
+  const paint = () => { readout.textContent = slider.value + ' GB'; };
+
+  mode.addEventListener('change', () => {
+    revealBox(box, mode.value === 'manual');
+    if (mode.value === 'auto' && S.hw) {
+      slider.value = S.hw.detectedBudgetGB;
+      paint();
+    }
+  });
+  slider.addEventListener('input', paint);
+  paint();
 }
 
 // The settings template is one long flat column split by text dividers. Rather than

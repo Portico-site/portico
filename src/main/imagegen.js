@@ -9,8 +9,9 @@ const { EXE, IS_WIN } = require('./platform');
 
 const ENGINE_URL = 'https://github.com/leejet/stable-diffusion.cpp/releases/download/master-782-b290693/sd-master-b290693-bin-win-vulkan-x64.zip';
 
-// Measured on a 4 GB RTX 3050 Ti: fp16 weights overflow VRAM, q8_0 fits in ~1.7 GB
-// and renders 512x512 / 20 steps in ~67 s. CPU-only took 355 s for the same image.
+// Conservative starting point, so the first render works on a small card rather than
+// failing to allocate. fp16 weights need roughly 4 GB of VRAM; q8_0 needs about 1.7.
+// The app raises these on machines with room — see hardware.recommend().
 const DEFAULTS = { width: 512, height: 512, steps: 20, cfg: 7, sampler: 'euler_a', quant: 'q8_0' };
 
 // Different families want very different settings: a Turbo/Lightning model at 20 steps
@@ -112,7 +113,7 @@ function generate(opts) {
     engineDir: dir, modelPath, prompt, negative = '', outPath,
     width = DEFAULTS.width, height = DEFAULTS.height, steps = DEFAULTS.steps,
     cfg = DEFAULTS.cfg, sampler = DEFAULTS.sampler, seed = -1,
-    device = 'vulkan0', quant = DEFAULTS.quant, onProgress,
+    device = 'auto', quant = DEFAULTS.quant, onProgress,
   } = opts;
 
   return new Promise((resolve, reject) => {

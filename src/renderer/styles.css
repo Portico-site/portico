@@ -1774,3 +1774,34 @@ button:focus:not(:focus-visible) { outline: none; }
 ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
 ::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); border: 2px solid transparent; background-clip: content-box; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* Whether a catalogue entry fits this machine. The verdict comes from the real
+   memory budget in the main process, so the badge is a measurement rather than a
+   restatement of the description. */
+.fit-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  vertical-align: middle;
+  border: 1px solid transparent;
+  cursor: help;
+}
+.fit-ok    { color: var(--ok, #6aa84f);   border-color: color-mix(in srgb, var(--ok, #6aa84f) 35%, transparent); }
+.fit-tight { color: var(--warn, #d1a44a); border-color: color-mix(in srgb, var(--warn, #d1a44a) 35%, transparent); }
+.fit-no    { color: var(--text-faint);    border-color: var(--border); }
+
+/* The detected machine, shown above the memory budget. */
+.hw-summary {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  background: var(--bg-raised, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  margin-top: 4px;
+}
