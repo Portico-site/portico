@@ -1267,6 +1267,33 @@ async function renderSettingsView() {
       <span class="hint">Applies after restarting the app.</span>
     </label>
 
+    <div class="settings-sep">Privacy</div>
+    <div class="field">
+      <span>What leaves this computer, and when</span>
+      <span class="hint">Nothing on this list runs on its own except the update check,
+        and that one has a switch. Everything else happens because you asked for it.</span>
+      <ul class="privacy-list">
+        <li><b>Nothing</b> — chatting with a local model. Your words go to a process on
+          this machine and back. No request is made.</li>
+        <li><b>Your words, to a search engine</b> — only while web search is on. What is
+          sent is your message, tidied up, not a keyword summary. Off by default.</li>
+        <li><b>Your address, to Hugging Face</b> — when you download a model. They see
+          which model and where from, as any download does.</li>
+        <li><b>Your address and version, to GitHub</b> — the update check below, and
+          when the image engine is fetched.</li>
+        <li><b>Everything you type, to whoever runs the engine</b> — only in Client
+          mode. See the note there before you turn it on.</li>
+      </ul>
+    </div>
+    <label class="check-row">
+      <input id="s-updchk" type="checkbox" ${s.updateCheck !== false ? 'checked' : ''} />
+      <span>Check for updates on startup <em>(one request to GitHub, 8 seconds after launch)</em></span>
+    </label>
+    <div class="field">
+      <span class="hint">Turning this off means you will not hear about security fixes.
+        You can still check by hand from About, below.</span>
+    </div>
+
     <div class="settings-sep">Shared engine</div>
     <div class="field">
       <span>Run the model somewhere else, or let others use this machine.</span>
@@ -1335,6 +1362,14 @@ async function renderSettingsView() {
       <div class="net-warn">
         Traffic is unencrypted, so only share on a network you trust — an office or home LAN.
         Do not forward this port to the internet; use a VPN if people need access from outside.
+      </div>
+      <div class="net-warn">
+        <b>What you are taking on.</b> Everything the people connecting to you type is
+        processed on this computer. Portico does not record it, and their chats stay saved
+        on their own machines — but the engine runs here, so anyone who can read this
+        machine's memory or run software on it could read their conversations too. They
+        are trusting you the way they would trust a cloud provider. Tell them what you are
+        sharing, and turn it off when you are not using it.
       </div>
     </div>
 
@@ -1446,6 +1481,7 @@ async function renderSettingsView() {
       parallelSlots: parseInt($('s-slots').value, 10) || 1,
       hardwareMode: $('s-hw-mode').value,
       memoryBudgetGB: $('s-hw-mode').value === 'manual' ? parseInt($('s-budget').value, 10) : 0,
+      updateCheck: $('s-updchk').checked,
     });
     // sharing changes the engine's bind address, which only takes effect on restart
     await api.applySharing();

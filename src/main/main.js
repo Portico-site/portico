@@ -70,6 +70,11 @@ function defaultSettings() {
     // a switch (Qwen3, QwQ) — R1 thinks whatever you ask of it.
     thinking: true,
 
+    // The one request the app makes on its own. It sends nothing about you, but it
+    // does show GitHub an address and a version number, and an app that says nothing
+    // leaves your computer should not make that call without a way to stop it.
+    updateCheck: true,
+
     // Fastest device as actually measured by Settings → Test graphics cards.
     // Overrides the discrete-first guess, which can be badly wrong on laptops
     // whose discrete GPU has been powered down by the driver.
@@ -318,7 +323,10 @@ app.whenReady().then(() => {
   updater.init(send, pkg, isDev);
   // quiet check on startup; the UI only speaks up if something is actually available
   if (!isDev && updater.feedConfigured(pkg)) {
-    setTimeout(() => updater.check({ pkg, isDev }).catch(() => {}), 8000);
+    setTimeout(() => {
+      if (store.getSettings().updateCheck === false) return;
+      updater.check({ pkg, isDev }).catch(() => {});
+    }, 8000);
   }
 
   app.on('activate', () => {

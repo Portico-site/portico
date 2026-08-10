@@ -1812,3 +1812,9 @@ button:focus:not(:focus-visible) { outline: none; }
 #btn-think.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 #btn-think.locked { cursor: default; opacity: 0.75; }
 #btn-think.locked:hover { background: transparent; }
+
+/* The plain list of what leaves the machine. Deliberately unstyled-looking: this is
+   a statement of fact, not a feature panel. */
+.privacy-list { margin: 8px 0 0; padding-left: 18px; font-size: 12.5px; line-height: 1.65; color: var(--text-faint); }
+.privacy-list li { margin-bottom: 6px; }
+.privacy-list b { color: var(--text-muted); font-weight: 600; }
