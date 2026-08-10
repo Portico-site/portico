@@ -41,7 +41,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "YOUR_GITHUB_USERNAME",
+        "owner": "Portico-site",
         "repo": "portico"
       }
     ],
@@ -127,5 +127,25 @@
         }
       ]
     }
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Portico-site/portico.git"
+  },
+  "homepage": "https://github.com/Portico-site/portico",
+  "bugs": {
+    "url": "https://github.com/Portico-site/portico/issues"
+  },
+  "keywords": [
+    "llm",
+    "local-llm",
+    "llama-cpp",
+    "gguf",
+    "offline",
+    "privacy",
+    "electron",
+    "desktop-app",
+    "ai",
+    "self-hosted"
+  ]
 }

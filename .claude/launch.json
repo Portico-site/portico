@@ -4,14 +4,14 @@
     {
       "name": "ui-preview",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8077", "--directory", "src/renderer"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8077",
+        "--directory",
+        "src/renderer"
+      ],
       "port": 8077
-    },
-    {
-      "name": "site",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8090", "--directory", "C:/Users/jolop/Downloads/portico-site"],
-      "port": 8090
     }
   ]
 }
