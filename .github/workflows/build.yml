@@ -14,6 +14,11 @@ on:
     tags:
       - 'v*'
 
+# Needed to attach the installers to a Release. Without it electron-builder can
+# build but not publish, and the job fails at the upload with a 403.
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -67,9 +72,25 @@ jobs:
           chmod +x "${{ matrix.dest }}"/llama-server* 2>/dev/null || true
           ls -la "${{ matrix.dest }}"
 
+      # A manual run is a dry run: it builds and keeps the result as an artifact so
+      # the workflow itself can be tested without publishing anything. A tag is the
+      # real thing, and publishes.
+      #
+      # `--publish always` is what makes auto-update work at all. It is not just an
+      # upload: electron-builder also writes latest.yml, latest-mac.yml and
+      # latest-linux.yml beside the installers, and those are the files
+      # electron-updater actually reads. Attaching the installers to a Release by
+      # hand would leave the app with nothing to check against.
       - name: Build installer
         shell: bash
-        run: npx electron-builder ${{ matrix.eb }} --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            npx electron-builder ${{ matrix.eb }} --publish always
+          else
+            npx electron-builder ${{ matrix.eb }} --publish never
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
