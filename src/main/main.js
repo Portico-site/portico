@@ -575,7 +575,11 @@ function registerIpc() {
   ipcMain.handle('save-file', async (e, opts) => {
     const suggested = String((opts && opts.suggestedName) || 'code.txt').replace(/[<>:"/\\|?*]/g, '_');
     const content = String((opts && opts.content) || '');
-    if (opts && opts.testPath) { // used by automated tests to skip the native dialog
+    // The suites drive this over CDP and cannot dismiss a native dialog, so they pass
+    // a path straight in. That is an unrestricted write, so it must never exist in a
+    // shipped build: there it would let anything that reaches this channel drop a
+    // file anywhere the user can write.
+    if (isDev && opts && opts.testPath) {
       fs.writeFileSync(String(opts.testPath), content, 'utf8');
       return String(opts.testPath);
     }
@@ -627,7 +631,11 @@ function registerIpc() {
   ipcMain.handle('delete-model', async (e, modelPath) => {
     const dir = path.resolve(store.getSettings().modelsDir);
     const resolved = path.resolve(modelPath);
-    if (!resolved.startsWith(dir)) return false;
+    // startsWith compares text, not paths: with a models folder at C:\models it
+    // would also accept anything under C:\models-something\. Compare the relative
+    // path — inside the folder it never begins with '..' and is never absolute.
+    const rel = path.relative(dir, resolved);
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return false;
     if (server.status().modelPath === modelPath) await server.stop();
     try { fs.unlinkSync(resolved); return true; } catch { return false; }
   });
