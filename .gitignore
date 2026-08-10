@@ -44,3 +44,6 @@ Thumbs.db
 .env
 *.p12
 *.pem
+
+# Personal notes and analyses that are not app documentation
+docs/coste-ia-privada-*.html
