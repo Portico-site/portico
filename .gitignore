@@ -37,8 +37,8 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Machine-local Claude Code settings (personal paths, not shared config)
-.claude/settings.local.json
+# Local editor and tooling config
+.claude/
 
 # Secrets — never commit signing certs or tokens
 .env
@@ -47,3 +47,4 @@ Thumbs.db
 
 # Personal notes and analyses that are not app documentation
 docs/coste-ia-privada-*.html
+BUILD_PROMPT.md
