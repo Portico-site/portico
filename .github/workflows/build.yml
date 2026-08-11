@@ -19,6 +19,12 @@ on:
 permissions:
   contents: write
 
+# Actions are pinned to commit SHAs rather than tags. A tag is a moving pointer: the
+# owner of an action — or anyone who compromises that account — can repoint v4 at new
+# code, and it would run here with access to the build that produces the installer
+# people download. The trailing comment records which tag each SHA was, so they can
+# still be read and updated deliberately.
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -40,9 +46,9 @@ jobs:
             eb: --linux
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
 
@@ -93,7 +99,7 @@ jobs:
           fi
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: portico-${{ matrix.os }}
           path: |
