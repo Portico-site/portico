@@ -23,8 +23,8 @@
   },
   "devDependencies": {
     "dompurify": "^3.4.12",
-    "electron": "^33.0.0",
-    "electron-builder": "^25.0.0",
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
     "marked": "^15.0.0",
     "ws": "^8.21.1"
   },
