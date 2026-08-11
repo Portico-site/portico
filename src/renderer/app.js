@@ -1204,6 +1204,7 @@ async function renderSettingsView() {
   const s = S.settings;
   S.devices = await api.listDevices();
   S.hw = await api.hardwareInfo().catch(() => null);
+  const enc = await api.encryptionStatus().catch(() => null);
   const hw = S.hw;
   const form = $('settings-form');
   form.innerHTML = `
@@ -1268,6 +1269,15 @@ async function renderSettingsView() {
     </label>
 
     <div class="settings-sep">Privacy</div>
+    <div class="field">
+      <span>On this disk</span>
+      <div class="hw-summary" id="s-enc-state">${enc && enc.available
+        ? 'Conversations, projects, assistants and API keys are encrypted with your operating system’s keyring.'
+        : 'Not encrypted — this system has no keyring available, so files are written in plain text.'}</div>
+      <span class="hint">${enc && enc.available
+        ? 'The key belongs to your account, so a stolen disk, a backup or another user on this machine cannot read them. Someone already logged in as you can — that is the same line every password manager draws.'
+        : 'On Linux this usually means no libsecret or kwallet is installed. Everything still works; the files are simply readable by anyone with access to this account’s folder.'}</span>
+    </div>
     <div class="field">
       <span>What leaves this computer, and when</span>
       <span class="hint">Nothing on this list runs on its own except the update check,

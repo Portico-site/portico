@@ -13,6 +13,7 @@ const logger = require('./logger');
 const updater = require('./updater');
 const engineClient = require('./engine-client');
 const hardware = require('./hardware');
+const secrets = require('./secrets');
 const { devEngineDir } = require('./platform');
 const pkg = require('../../package.json');
 
@@ -611,6 +612,7 @@ function registerIpc() {
 
   ipcMain.handle('list-models', () => scanModels(store.getSettings().modelsDir));
   ipcMain.handle('hardware-info', () => hardwareInfo());
+  ipcMain.handle('encryption-status', () => ({ available: secrets.isAvailable() }));
 
   ipcMain.handle('get-catalog', async () => {
     const dir = store.getSettings().modelsDir;

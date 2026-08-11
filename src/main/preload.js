@@ -82,6 +82,7 @@ contextBridge.exposeInMainWorld('pristudio', {
   serverStatus: () => ipcRenderer.invoke('server-status'),
   listDevices: () => ipcRenderer.invoke('list-devices'),
   hardwareInfo: () => ipcRenderer.invoke('hardware-info'),
+  encryptionStatus: () => ipcRenderer.invoke('encryption-status'),
   benchmarkDevices: () => ipcRenderer.invoke('benchmark-devices'),
   onDeviceBenchmarkProgress: (cb) => ipcRenderer.on('device-benchmark-progress', (e, p) => cb(p)),
   loadModel: (p) => ipcRenderer.invoke('load-model', p),

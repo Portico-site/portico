@@ -1,7 +1,18 @@
 const fs = require('fs');
 const path = require('path');
+const secrets = require('./secrets');
+
+// Which settings are secret. The rest of settings.json stays readable, so the app can
+// still start and find your models if the OS keyring is unavailable — only these are
+// worth the risk of being unreadable.
+const SECRET_KEYS = ['braveApiKey', 'remoteKey', 'shareKey'];
 
 // Settings in userData/settings.json, one JSON file per conversation in userData/chats/.
+//
+// Conversations and the keys above are encrypted at rest with the OS keyring. Files
+// written by an older version are plaintext, are read as such, and are re-encrypted
+// the next time they are saved — so upgrading needs no migration step and cannot
+// strand anyone mid-way.
 class Store {
   constructor(userDataDir, defaults) {
     this.settingsPath = path.join(userDataDir, 'settings.json');
@@ -13,6 +24,10 @@ class Store {
     fs.mkdirSync(this.artifactsDir, { recursive: true });
     this.defaults = defaults;
     this.settings = { ...defaults, ...this.readJson(this.settingsPath) };
+    // kept decrypted in memory; only the file on disk is sealed
+    for (const k of SECRET_KEYS) {
+      if (secrets.isSealed(this.settings[k])) this.settings[k] = secrets.open(this.settings[k]);
+    }
   }
 
   /* ---------- projects: a name, standing instructions, and reference files ---------- */
@@ -26,13 +41,13 @@ class Store {
     const all = this.listProjects();
     const i = all.findIndex((p) => p.id === project.id);
     if (i >= 0) all[i] = { ...all[i], ...project }; else all.push(project);
-    fs.writeFileSync(this.projectsPath, JSON.stringify({ projects: all }, null, 2));
+    fs.writeFileSync(this.projectsPath, secrets.seal(JSON.stringify({ projects: all }, null, 2)));
     return all;
   }
 
   deleteProject(id) {
     const all = this.listProjects().filter((p) => p.id !== id);
-    fs.writeFileSync(this.projectsPath, JSON.stringify({ projects: all }, null, 2));
+    fs.writeFileSync(this.projectsPath, secrets.seal(JSON.stringify({ projects: all }, null, 2)));
     // chats survive; they just fall back to "no project"
     for (const meta of this.listChats()) {
       const c = this.getChat(meta.id);
@@ -52,18 +67,23 @@ class Store {
     const all = this.listAssistants();
     const i = all.findIndex((x) => x.id === a.id);
     if (i >= 0) all[i] = { ...all[i], ...a }; else all.push(a);
-    fs.writeFileSync(this.assistantsPath, JSON.stringify({ assistants: all }, null, 2));
+    fs.writeFileSync(this.assistantsPath, secrets.seal(JSON.stringify({ assistants: all }, null, 2)));
     return all;
   }
 
   deleteAssistant(id) {
     const all = this.listAssistants().filter((x) => x.id !== id);
-    fs.writeFileSync(this.assistantsPath, JSON.stringify({ assistants: all }, null, 2));
+    fs.writeFileSync(this.assistantsPath, secrets.seal(JSON.stringify({ assistants: all }, null, 2)));
     return all;
   }
 
+  // Reads both shapes: a sealed file is opened first, a plaintext one from an older
+  // version parses directly and gets sealed the next time it is written.
   readJson(p) {
-    try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return {}; }
+    try {
+      const raw = fs.readFileSync(p, 'utf8');
+      return JSON.parse(secrets.isSealed(raw) ? secrets.open(raw) : raw);
+    } catch { return {}; }
   }
 
   getSettings() {
@@ -72,7 +92,9 @@ class Store {
 
   saveSettings(patch) {
     this.settings = { ...this.settings, ...patch };
-    fs.writeFileSync(this.settingsPath, JSON.stringify(this.settings, null, 2));
+    const onDisk = { ...this.settings };
+    for (const k of SECRET_KEYS) if (onDisk[k]) onDisk[k] = secrets.seal(onDisk[k]);
+    fs.writeFileSync(this.settingsPath, JSON.stringify(onDisk, null, 2));
     return this.settings;
   }
 
@@ -104,7 +126,8 @@ class Store {
 
   saveChat(chat) {
     if (!/^[\w-]+$/.test(chat.id)) return;
-    fs.writeFileSync(path.join(this.chatsDir, chat.id + '.json'), JSON.stringify(chat));
+    fs.writeFileSync(path.join(this.chatsDir, chat.id + '.json'),
+      secrets.seal(JSON.stringify(chat)));
   }
 
   deleteChat(id) {
