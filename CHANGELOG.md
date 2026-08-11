@@ -3,6 +3,69 @@
 Notable changes per release. Versions with nothing user-visible are folded into
 the release that followed.
 
+## 0.22.0 — 2026-08-11
+
+Portico stops assuming it is running on the machine it was written on, starts
+encrypting what it keeps, and says plainly what leaves your computer.
+
+### Added
+
+- **Everything on disk is encrypted.** Conversations, projects, assistants and
+  API keys are sealed with the operating system's keyring — DPAPI on Windows, the
+  Keychain on macOS, libsecret or kwallet on Linux. No passphrase to remember and
+  none to lose. It protects a stolen disk, a backup, a synced folder or another
+  account on the same machine; it does not protect against someone already logged
+  in as you, and Settings says so. Existing chats are read as they are and sealed
+  the next time they are saved, so there is no migration step.
+- **Settings → Privacy lists every request the app can make**, and what triggers
+  each one. Chatting locally makes none.
+- **The update check can be switched off.** It was the only request Portico made
+  on its own, and an app whose claim is that nothing leaves your computer should
+  not make it without a way to stop it.
+- **Defaults now follow your machine.** Context size, GPU layers, thread count,
+  image quality and concurrent slots are worked out from the memory, cores and
+  graphics card actually present — from a 4 GB netbook to a 128 GB server, and
+  Apple's unified memory counted once rather than twice. Settings shows what was
+  detected and lets you set the budget by hand when detection is wrong.
+- **The catalogue says whether each model fits**, computed against that budget
+  rather than described in prose.
+- **A thinking toggle** for models that reason out loud, and what that reasoning
+  costs: each block reads "Thought for N tokens", and the token panel totals it
+  for the conversation. On Qwen3 and QwQ the toggle genuinely turns it off; on
+  DeepSeek R1 it says there is no switch instead of pretending.
+- **Longest reply goes to 32,768 tokens.** Options beyond half the context window
+  are shown disabled with the reason, rather than accepted and silently clamped.
+
+### Changed
+
+- **Electron 33 → 43.** Chromium 130 → 150, Node 20 → 24, and 33 security
+  advisories closed, including a context-isolation bypass and an ASAR integrity
+  bypass. The installer grows to 143 MB; that is the newer Chromium.
+- Sharing your engine now says what you are taking on: the model runs on your
+  computer, so anyone who can read that machine could read your colleagues'
+  conversations.
+- Settings is grouped into cards instead of one long column.
+- The opening screen is just the message box, centred. The logo and greeting
+  return when the sidebar is open.
+
+### Fixed
+
+- **Web search could be pointed inward.** The pages behind results were fetched
+  with no check on the address, so a result aimed at 127.0.0.1 could pull the
+  engine's own responses into the model's context, and one aimed at 192.168.1.1
+  could read a router's admin page. Local, private and link-local addresses are
+  now refused, on redirects and at DNS lookup too.
+- **Opening an artifact externally accepted any path**, and handed it to whatever
+  the system had registered for it — a .bat would have run. It now opens .html
+  only, from the artifacts folder only.
+- A test-only branch that wrote to any path was shipping in release builds.
+- Deleting a model compared paths as text, so a folder named alongside the models
+  folder was accepted.
+- The download checksum on the website is now computed from the installer's bytes
+  at build time. It had drifted, and a stale checksum reads as a tampered file.
+- The sidebar had lost its slide entirely: a later rule redefined `transition`,
+  which is a shorthand. The composer now glides with it instead of dropping.
+
 ## 0.21.0 — 2026-08-04
 
 Control over what the model costs you, a run-it-elsewhere option, and several
