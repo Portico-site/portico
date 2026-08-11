@@ -794,7 +794,15 @@ function registerIpc() {
     return { path: p, url: 'file:///' + p.replace(/\\/g, '/') };
   });
   ipcMain.handle('open-artifact-externally', (e, p) => {
-    if (p && fs.existsSync(String(p))) shell.openPath(String(p));
+    // shell.openPath hands the file to whatever the OS has registered for it, so an
+    // unconstrained path here is a way to launch an executable. Artifacts only ever
+    // live in one folder, and that is the only place this will open from.
+    const dir = path.resolve(store.artifactsDir);
+    const target = path.resolve(String(p || ''));
+    const rel = path.relative(dir, target);
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return;
+    if (!/\.html?$/i.test(target) || !fs.existsSync(target)) return;
+    shell.openPath(target);
   });
 
   ipcMain.handle('list-chats', () => store.listChats());

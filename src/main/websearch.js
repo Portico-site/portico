@@ -18,15 +18,54 @@ const BROWSER_HEADERS = {
 const MAX_BYTES = 2 * 1024 * 1024;
 let lastSearchAt = 0;
 
+// Addresses that are never a search result: this machine, the local network, the
+// link-local range cloud providers put their metadata service on.
+//
+// This matters because the URLs fetched here are not chosen by the user. They come
+// from search engine results, and the page that comes back is read into the model's
+// context. Without this, a result pointing at 127.0.0.1:8033 would pull the engine's
+// own responses, and one pointing at 192.168.1.1 would read the router's admin page
+// and summarise it. Redirects are checked too — the recursion re-enters here — so an
+// external site cannot bounce the fetch inward.
+const PRIVATE_V4 = [
+  /^127\./, /^10\./, /^192\.168\./, /^169\.254\./, /^0\./,
+  /^172\.(1[6-9]|2\d|3[01])\./, /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./,
+];
+function isInternalAddress(host) {
+  const h = String(host || '').toLowerCase().replace(/^\[|\]$/g, '');
+  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local')) return true;
+  if (h === '::1' || h === '::' ) return true;
+  if (/^f[cd][0-9a-f]{2}:/i.test(h)) return true;       // unique-local IPv6
+  if (/^fe80:/i.test(h)) return true;                   // link-local IPv6
+  if (/^::ffff:/i.test(h)) return isInternalAddress(h.replace(/^::ffff:/i, ''));
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return PRIVATE_V4.some((re) => re.test(h));
+  return false;
+}
+
 function httpGet(rawUrl, { headers = {}, timeout = 15000, redirects = 0 } = {}) {
   return new Promise((resolve, reject) => {
     if (redirects > 5) return reject(new Error('Too many redirects'));
     let u;
     try { u = new URL(rawUrl); } catch { return reject(new Error('Bad URL')); }
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return reject(new Error('Unsupported protocol'));
+    if (isInternalAddress(u.hostname)) return reject(new Error('Refusing to fetch a local address'));
+
+    // A hostname is not enough: evil.example could resolve to 127.0.0.1. Checking at
+    // lookup time catches that, and closes the rebinding gap the literal check above
+    // cannot see.
+    const guardedLookup = (hostname, opts, cb) => {
+      require('dns').lookup(hostname, opts, (err, address, family) => {
+        if (err) return cb(err);
+        const list = Array.isArray(address) ? address : [{ address, family }];
+        if (list.some((a) => isInternalAddress(a.address))) {
+          return cb(new Error('Refusing to fetch a local address'));
+        }
+        return Array.isArray(address) ? cb(null, address) : cb(null, address, family);
+      });
+    };
 
     const mod = u.protocol === 'https:' ? https : require('http');
-    const req = mod.get(u, { headers: { ...BROWSER_HEADERS, ...headers }, timeout }, (res) => {
+    const req = mod.get(u, { headers: { ...BROWSER_HEADERS, ...headers }, timeout, lookup: guardedLookup }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
         return resolve(httpGet(new URL(res.headers.location, u).toString(), { headers, timeout, redirects: redirects + 1 }));
