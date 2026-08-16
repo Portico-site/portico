@@ -48,3 +48,6 @@ Thumbs.db
 # Personal notes and analyses that are not app documentation
 docs/coste-ia-privada-*.html
 BUILD_PROMPT.md
+
+# Raw screenshot captures; the sized copies live in the website repo
+shots/
