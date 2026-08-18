@@ -162,22 +162,53 @@ function thinkingChars(text) {
   return n;
 }
 
-function renderMd(md) {
-  // Reasoning models (DeepSeek R1, Qwen3) wrap their inner monologue in <think> tags —
-  // show it as a collapsible block, open while it's still streaming, collapsed once done.
+/**
+ * The reply with the model's reasoning taken out.
+ *
+ * The thinking is folded away on screen, so anything that carries the reply somewhere
+ * else — the clipboard, the history sent back to the engine — should not quietly take
+ * it along. A reply that is nothing but reasoning keeps it rather than becoming empty.
+ */
+function answerOnly(text) {
+  const src = String(text || '');
+  const stripped = src.replace(/<think>[\s\S]*?(?:<\/think>|$)/g, '').trim();
+  return stripped || src.replace(/<\/?think>/g, '').trim();
+}
+
+function renderMd(md, meta) {
+  // Reasoning models (DeepSeek R1, Qwen3) wrap their inner monologue in <think> tags.
   //
-  // The summary carries the cost of that thinking, because on a local model it is the
-  // part people are actually paying for: a long think is a slow answer and a smaller
-  // context window for everything that follows.
+  // While it is still arriving the block stays open and the header keeps count, because
+  // on a local model the wait before the first word of the answer *is* the thinking —
+  // and a number that is climbing tells you the machine is working rather than stuck.
+  // Once the tag closes, the whole thing folds to one line carrying what it cost.
+  const secs = (ms) => (ms < 1000 ? '0s'
+    : ms < 60000 ? Math.round(ms / 1000) + 's'
+    : Math.floor(ms / 60000) + 'm ' + Math.round((ms % 60000) / 1000) + 's');
+
   let src = md || '';
+  let block = -1;
   src = src.replace(/<think>([\s\S]*?)(<\/think>|$)/g, (m0, inner, close) => {
+    block++;
     const body = inner.trim();
     if (!body && close) return '\n\n';
-    const label = close
-      ? `Thought for ${tok(body.length).toLocaleString()} tokens`
-      : `Thinking… ${tok(body.length).toLocaleString()} tokens`;
-    return '\n\n<details class="think"' + (close ? '' : ' open') +
-      '><summary>' + esc(label) + '</summary><div class="think-body">' + esc(body) + '</div></details>\n\n';
+    const n = tok(body.length).toLocaleString();
+    // a reply can hold more than one thought, each with its own clock
+    const t = meta && meta.thinkMs;
+    const ms = Array.isArray(t) ? t[block] : t;
+    const time = ms ? ' · ' + secs(ms) : '';
+    const head = close
+      ? '<span class="think-lab">Thought for ' + n + ' tokens' + time + '</span>'
+      // the dots sit outside the label: it is painted through a clipped gradient,
+      // and anything nested inside that inherits the same trick
+      : '<span class="think-lab live">Thinking</span>'
+        + '<span class="think-dots"><i></i><i></i><i></i></span>'
+        + '<span class="think-meter">' + n + ' tokens' + time + '</span>';
+    // One line, no blank lines: a blank line would end the HTML block and hand the rest
+    // of the reasoning to the markdown parser, which then closes the tags in the wrong place.
+    const text = esc(body).replace(/\r?\n/g, '<br>');
+    return '\n\n<details class="think' + (close ? '' : ' is-live') + '"' + (close ? '' : ' open')
+      + '><summary>' + head + '</summary><div class="think-body">' + text + '</div></details>\n\n';
   });
   return DOMPurify.sanitize(marked.parse(src));
 }
@@ -557,12 +588,13 @@ function messageEl(msg, idx) {
     div.innerHTML = pyResultHtml(msg.pyrun);
   } else {
     div.className = 'msg msg-assistant';
-    div.innerHTML = `<div class="md">${renderMd(msg.content)}</div>` +
+    div.innerHTML = `<div class="md">${renderMd(msg.content, { thinkMs: msg.thinkMs })}</div>` +
       `<div class="msg-actions">` +
       `<button class="icon-btn a-copy" title="Copy">${ICONS.copy}</button>` +
       `<button class="icon-btn a-regen" title="Regenerate" hidden>${ICONS.refresh}</button></div>`;
     div.querySelector('.a-copy').addEventListener('click', () => {
-      navigator.clipboard.writeText(msg.content);
+      // the answer, not the monologue behind it — see answerOnly()
+      navigator.clipboard.writeText(answerOnly(msg.content));
       toast('Copied');
     });
     div.querySelector('.a-regen').addEventListener('click', () => regenerate());
@@ -847,15 +879,46 @@ async function streamAssistantReply() {
 
   let t0 = 0; // set on first token so speed reflects generation only
   let tokens = 0;
+  // <think> opens before any answer text, so its clock is separate from t0.
+  // One entry per block, in the order they appear, since a reply may hold several.
+  const thinkMs = [];
+  let thinkT0 = 0, thinkIdx = -1;
   let renderQueued = false;
   const queueRender = () => {
     if (renderQueued) return;
     renderQueued = true;
     requestAnimationFrame(() => {
       renderQueued = false;
-      mdDiv.innerHTML = renderMd(asstMsg.content) + (S.generating ? '<span class="cursor"></span>' : '');
+      mdDiv.innerHTML = renderMd(asstMsg.content, { thinkMs })
+        + (S.generating ? '<span class="cursor"></span>' : '');
+      // the capped live block is redrawn from the top each frame; pin it to the newest line
+      const think = mdDiv.querySelector('.think.is-live .think-body');
+      if (think) think.scrollTop = think.scrollHeight;
       scrollToBottom(false);
     });
+  };
+
+  // The clock has to run on its own. A model can sit several seconds between tokens,
+  // and a timer that freezes there is exactly the doubt this display exists to remove.
+  let thinkTick = null;
+  const stopThinkClock = () => { clearInterval(thinkTick); thinkTick = null; };
+  const trackThinking = () => {
+    const opened = asstMsg.content.lastIndexOf('<think>');
+    const closed = asstMsg.content.lastIndexOf('</think>');
+    if (opened > closed) {
+      if (!thinkT0) {
+        thinkT0 = Date.now();
+        thinkIdx = thinkMs.length;
+        thinkMs.push(0);
+        // kept with the message, and mutated in place, so reopening the chat still shows it
+        asstMsg.thinkMs = thinkMs;
+        thinkTick = setInterval(() => { thinkMs[thinkIdx] = Date.now() - thinkT0; queueRender(); }, 300);
+      }
+      thinkMs[thinkIdx] = Date.now() - thinkT0;
+    } else if (thinkT0) {
+      thinkT0 = 0;
+      stopThinkClock();
+    }
   };
 
   await new Promise((resolve) => {
@@ -865,6 +928,7 @@ async function streamAssistantReply() {
       if (settled) return;
       settled = true;
       S.chatHooks = null;
+      stopThinkClock();   // stopped or failed mid-thought: never leave the tick running
       if (err) {
         asstMsg.content += (asstMsg.content ? '\n\n' : '') + '*[Error: ' + err.message + ']*';
         toast('Generation failed: ' + err.message);
@@ -881,6 +945,7 @@ async function streamAssistantReply() {
             if (!t0) t0 = Date.now();
             asstMsg.content += delta.content;
             tokens++;
+            trackThinking();
             queueRender();
           }
         } catch {}
@@ -907,7 +972,7 @@ async function streamAssistantReply() {
     chat.messages.pop();
     renderMessages();
   } else {
-    mdDiv.innerHTML = renderMd(asstMsg.content);
+    mdDiv.innerHTML = renderMd(asstMsg.content, { thinkMs });
     const secs = t0 ? (Date.now() - t0) / 1000 : 0;
     if (tokens > 3 && secs > 0.3) $('gen-speed').textContent = (tokens / secs).toFixed(1) + ' tok/s';
     updateRegenVisibility();
@@ -976,6 +1041,8 @@ function renderModelsView() {
     const downloading = dl && !dl.done && !dl.error && !dl.cancelled;
     let actions;
     if (m.installed) actions = '<span class="badge loaded">Installed</span>';
+    // nothing left to cancel once the bytes are in and only the check is running
+    else if (dl && dl.verifying) actions = '<span class="badge">Checking</span>';
     else if (downloading) actions = '<button class="btn b-cancel">Cancel</button>';
     else actions = `<button class="btn primary b-dl">${m.partial ? 'Resume' : 'Download'}</button>`;
     // Whether it fits is computed from the machine's real memory budget in the main
@@ -993,8 +1060,10 @@ function renderModelsView() {
       `<div class="meta">~${m.sizeGB} GB · GGUF</div>` +
       `<div class="desc">${esc(m.desc)}</div>` +
       (downloading
-        ? `<div class="progress-wrap"><div class="progress-bar"><div style="width:${dl.total ? (100 * dl.received / dl.total).toFixed(1) : 0}%"></div></div>` +
-          `<div class="progress-label">${fmtBytes(dl.received)} / ${fmtBytes(dl.total)} · ${fmtBytes(dl.speed)}/s</div></div>`
+        ? `<div class="progress-wrap"><div class="progress-bar"><div style="width:${dl.verifying ? 100 : (dl.total ? (100 * dl.received / dl.total).toFixed(1) : 0)}%"></div></div>` +
+          `<div class="progress-label">${dl.verifying
+            ? 'Checking the file against its published checksum…'
+            : `${fmtBytes(dl.received)} / ${fmtBytes(dl.total)} · ${fmtBytes(dl.speed)}/s`}</div></div>`
         : '') +
       `</div><div class="actions">${actions}</div>`;
     card.querySelector('.b-dl')?.addEventListener('click', async () => {
@@ -1010,11 +1079,15 @@ function renderModelsView() {
 api.onDownloadProgress(async (p) => {
   S.downloads[p.id] = p;
   if (p.done) {
-    toast('Download complete');
+    // Saying which of the two happened matters: "complete" on a file nobody checked
+    // is a different claim from "complete, and it is the file the catalogue names".
+    toast(p.checksum === 'ok' ? 'Downloaded and checksum verified' : 'Download complete');
     await refreshModels();
     S.catalog = await api.getCatalog();
   }
-  if (p.error) toast('Download failed: ' + p.error);
+  // a checksum failure is not an ordinary network error; it stays on screen
+  if (p.error) toast(p.checksum === 'failed' ? p.error : 'Download failed: ' + p.error,
+    p.checksum === 'failed' ? 12000 : undefined);
   if (p.cancelled) S.catalog = await api.getCatalog();
   if (S.view === 'models') renderModelsView();
 });
@@ -1277,6 +1350,16 @@ async function renderSettingsView() {
       <span class="hint">${enc && enc.available
         ? 'The key belongs to your account, so a stolen disk, a backup or another user on this machine cannot read them. Someone already logged in as you can — that is the same line every password manager draws.'
         : 'On Linux this usually means no libsecret or kwallet is installed. Everything still works; the files are simply readable by anyone with access to this account’s folder.'}</span>
+    </div>
+    <div class="field">
+      <span>What is not encrypted</span>
+      <span class="hint">Three kinds of file have to stay readable to work at all: pictures
+        you generated, figures your Python code drew, and HTML previews. They are plain
+        files in your Portico folder. Their names carry nothing about what you asked for,
+        and the prompts themselves live in the conversation, which is encrypted. Models are
+        plain too — they are public weights, several gigabytes each. So is the log, which
+        records start-ups, errors and crashes, and no prompts or replies. “Open log folder”
+        under About takes you there if you want to look.</span>
     </div>
     <div class="field">
       <span>What leaves this computer, and when</span>
@@ -2362,6 +2445,10 @@ function apiContent(m, budgetChars) {
 // Older turns keep only a one-line trace. Re-sending whole web pages every turn was
 // eating the entire context window and wiping the model's memory of the conversation.
 function compactContent(m) {
+  // Last turn's reasoning is not part of this turn's conversation. DeepSeek and Qwen
+  // both say to drop it from the history, and there is no reason to spend the context
+  // window — or, on someone else's engine, the bandwidth — resending it.
+  const body = m.role === 'assistant' ? answerOnly(m.content) : m.content;
   const notes = [];
   if (m.search && m.search.results && m.search.results.length) {
     const hosts = [...new Set(m.search.results.map((r) => {
@@ -2372,8 +2459,8 @@ function compactContent(m) {
   if (m.attachments && m.attachments.length) {
     notes.push(`[files attached earlier: ${m.attachments.map((a) => a.name).join(', ')}]`);
   }
-  if (!notes.length) return m.content;
-  return notes.join(' ') + (m.content ? '\n' + m.content : '');
+  if (!notes.length) return body;
+  return notes.join(' ') + (body ? '\n' + body : '');
 }
 
 // A small, accurate description of this app, given to the model only when the user
@@ -2488,6 +2575,7 @@ function buildApiMessages(history) {
   let trimmed = 0;
   for (let i = lastIdx - 1; i >= 0; i--) {
     const c = compactContent(history[i]);
+    if (!c.trim()) continue;   // a reply that never got past its own thinking
     if (used + c.length > budgetChars) { trimmed = i + 1; break; }
     used += c.length;
     out.unshift({ role: history[i].role, content: c });

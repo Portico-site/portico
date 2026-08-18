@@ -108,7 +108,9 @@ that matters, turn on web search and click the source links.
 - The model runs locally; prompts are never uploaded.
 - **Web search is the one exception**: when the globe toggle is on, your question is sent to
   a search engine. The footer turns amber to remind you, and it is off by default.
-- Model downloads come from Hugging Face; that is the only other outbound traffic.
+- Model downloads come from Hugging Face; that is the only other outbound traffic. Each one
+  is checked against a SHA-256 the catalogue pins from that repository, and a file that does
+  not match is deleted rather than kept.
 - Diagnostics logs are written locally and never sent anywhere. **Settings → Open log folder.**
 
 ---
@@ -155,6 +157,19 @@ npm run dist       # Windows installer  -> dist/
 npm run dist:mac   # macOS .dmg + .zip   (must run on macOS)
 npm run dist:linux # Linux AppImage + .deb
 ```
+
+Checks that need nothing running:
+
+```bash
+npm run test:hardware   # settings derived across a sweep of imaginary machines
+npm run test:thinking   # the live reasoning display
+npm run test:downloads  # model checksums are enforced, including on resume
+npm run pin-hashes      # refresh catalogue checksums from Hugging Face
+```
+
+The Windows installer is unsigned, so it opens with a SmartScreen warning.
+[docs/SIGNING.md](docs/SIGNING.md) lists what fixes that, what each option costs,
+and the two environment variables it takes once you have a certificate.
 
 Each platform can only be built on itself — a `.dmg` in particular requires a Mac.
 To build all three without owning the machines, use the included GitHub Actions

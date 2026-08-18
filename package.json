@@ -1,7 +1,7 @@
 {
   "name": "pristudio",
   "productName": "Portico",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "description": "Chat with language models running 100% locally on your PC",
   "main": "src/main/main.js",
   "author": "Portico contributors",
@@ -14,7 +14,10 @@
     "stage": "node scripts/stage-release.js",
     "release": "npm run dist && npm run stage",
     "set-domain": "node scripts/set-site-domain.js",
-    "test:hardware": "node test/hardware.js"
+    "test:hardware": "node test/hardware.js",
+    "test:thinking": "node test/thinking.js",
+    "test:downloads": "node test/download-integrity.js",
+    "pin-hashes": "node scripts/pin-model-hashes.js"
   },
   "dependencies": {
     "electron-updater": "^6.8.9",

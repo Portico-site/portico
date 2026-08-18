@@ -3,6 +3,66 @@
 Notable changes per release. Versions with nothing user-visible are folded into
 the release that followed.
 
+## 0.23.0 — 2026-08-17
+
+You can watch a reasoning model think, the thinking stays where it belongs, and the
+models you download are checked against what their publisher says they are.
+
+### Added
+
+- **Every model download is verified.** The catalogue now carries a SHA-256 for all 34
+  entries, taken from Hugging Face itself — a Git LFS object id *is* the SHA-256 of the
+  file, so these are published hashes rather than numbers this project made up. The hash
+  is computed as the file arrives, so a 40 GB model is not read twice, and a file that
+  does not match is deleted rather than left on disk looking finished. A resumed download
+  is checked by reading the completed file back, because the bytes already on disk never
+  passed through the running hash. Downloading gigabytes of weights and running them
+  without checking what arrived was the one place this app took a file on trust.
+
+- **You can watch a reasoning model think.** Models that reason before answering
+  (DeepSeek R1, Qwen3, QwQ) used to leave the screen still until the whole thought
+  was over — on a local machine that can be a minute of nothing. The block now
+  opens as it arrives: the reasoning in dimmed italic, a token count climbing, and
+  the elapsed time running. The clock is its own, so it keeps moving through the
+  pauses between tokens rather than freezing and looking stuck. A long monologue
+  is held to its last few lines instead of pushing the answer off the screen.
+  When the model finishes, the block folds to a single line — *Thought for 202
+  tokens · 14s* — which is kept with the message and still there when you reopen
+  the conversation.
+
+### Changed
+
+- **Copying a reply copies the reply.** The reasoning is folded away on screen, but
+  the copy button used to put the whole `<think>` block on the clipboard — so pasting
+  an answer into an email carried the model's inner monologue with it, tags and all.
+  It now copies the answer. A reply that never got past its own thinking still copies
+  that, rather than copying nothing.
+- **Last turn's reasoning is no longer sent back to the engine.** Every earlier thought
+  was being replayed as part of the conversation on each new message. DeepSeek and Qwen
+  both say to drop it, and it was spending the context window on text you had already
+  been shown the conclusion of — or, if you point Portico at someone else's engine,
+  sending it over the network again and again.
+- **Generated pictures are no longer named after your prompt.** The file name used to be
+  the first few words of what you asked for, which put it in plain text outside everything
+  the keyring protects — legible to a backup tool, a sync client or a search indexer
+  without opening a single file. Pictures are now named after the moment they were made;
+  the prompt stays in the conversation, which is encrypted. Existing files keep their
+  names, so rename them yourself if you would rather they said nothing.
+- **The warning before running the model's Python catches more.** It already refused to
+  stay quiet about `os`, `subprocess`, sockets and file writes; it now also names dynamic
+  imports, writes made through `pathlib`, and unpickling — which runs code. It remains a
+  warning rather than a sandbox: the code runs with your permissions, only when you press
+  Run, and the dialog says so.
+- **Settings → Privacy now names what is *not* encrypted** — pictures, plots, HTML previews,
+  models and the log — instead of only listing what is. The website's file table was
+  missing three of those; it lists them now.
+
+### Fixed
+
+- A blank line inside a model's reasoning used to end the HTML block early, so
+  the rest of the thought was parsed as markdown and the tags closed in the wrong
+  place.
+
 ## 0.22.0 — 2026-08-11
 
 Portico stops assuming it is running on the machine it was written on, starts

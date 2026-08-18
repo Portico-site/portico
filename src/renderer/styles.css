@@ -1309,11 +1309,15 @@ input, textarea, select {
 }
 .model-group-label:first-child { margin-top: 4px; }
 
-/* Collapsible "thinking" block from reasoning models (DeepSeek R1, Qwen3) */
+/* Collapsible "thinking" block from reasoning models (DeepSeek R1, Qwen3).
+   Two states from the same markup: while the tag is open it is unfolded and
+   moving, with the reasoning visible and a running count; when the tag closes
+   it collapses to one quiet line stating what it cost. */
 details.think {
   margin: 0.6em 0;
   border-left: 3px solid var(--border);
   padding: 2px 0 2px 12px;
+  transition: border-color 0.4s ease;
 }
 details.think summary {
   cursor: pointer;
@@ -1321,16 +1325,80 @@ details.think summary {
   color: var(--text-faint);
   user-select: none;
   list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
-details.think summary::before { content: '▸ '; }
-details.think[open] summary::before { content: '▾ '; }
+details.think summary::before { content: '▸'; font-size: 10px; }
+details.think[open] summary::before { content: '▾'; font-size: 10px; }
 details.think .think-body {
   white-space: pre-wrap;
   font-size: 13px;
+  font-style: italic;   /* the model talking to itself, live or reopened later */
   color: var(--text-faint);
   line-height: 1.55;
   margin-top: 6px;
 }
+
+/* --- live --- */
+details.think.is-live {
+  border-left-color: var(--border-strong);
+  animation: think-rule 2.6s ease-in-out infinite;
+}
+@keyframes think-rule {
+  0%, 100% { border-left-color: var(--border); }
+  50% { border-left-color: var(--border-strong); }
+}
+details.think.is-live .think-body {
+  /* A long monologue would push the answer off the screen and then vanish in one
+     jump when it folded. Live, the block shows its last few lines and no more —
+     the tail is what is arriving now, so it is the part worth reading. The fade
+     doubles as the sign that there is more above. */
+  max-height: 11em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.25), #000 52px);
+}
+/* the label breathes rather than blinks — a sweep slow enough to read over */
+.think-lab.live {
+  background: linear-gradient(90deg,
+    var(--text-faint) 0%, var(--text-faint) 35%,
+    var(--text-muted) 50%,
+    var(--text-faint) 65%, var(--text-faint) 100%);
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: think-sweep 2.6s linear infinite;
+}
+@keyframes think-sweep { from { background-position: 130% 0; } to { background-position: -130% 0; } }
+
+/* the dots carry their own colour: the label is painted through a clipped gradient,
+   so currentColor there is transparent */
+/* pulled back against the summary's gap so the dots read as part of the word */
+.think-dots { display: inline-flex; gap: 3px; margin-left: -4px; align-items: center; }
+.think-dots i {
+  width: 3px; height: 3px; border-radius: 50%;
+  background: var(--text-muted); opacity: 0.35;
+  animation: think-dot 1.4s ease-in-out infinite;
+}
+.think-dots i:nth-child(2) { animation-delay: 0.18s; }
+.think-dots i:nth-child(3) { animation-delay: 0.36s; }
+@keyframes think-dot {
+  0%, 70%, 100% { opacity: 0.35; transform: translateY(0); }
+  35% { opacity: 1; transform: translateY(-2px); }
+}
+
+/* Sits beside the label, not flush right: across a wide message the two halves of
+   one sentence would otherwise end up a screen apart. Tabular figures so the
+   climbing count does not shuffle the line sideways. */
+.think-meter {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+.think-meter::before { content: '·'; margin-right: 6px; opacity: 0.6; }
 
 /* ---------- Settings form ---------- */
 

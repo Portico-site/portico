@@ -60,11 +60,46 @@ for (const p of fs.readdirSync(SITE).filter((f) => f.endsWith('.html'))) {
   const before = fs.readFileSync(file, 'utf8');
   const after = before
     .replace(/(sha256:\s*')[0-9A-Fa-f]{64}(')/g, `$1${sha}$2`)
-    .replace(/(sizeMB:\s*)\d+/g, `$1${sizeMB}`);
+    .replace(/(sizeMB:\s*)\d+/g, `$1${sizeMB}`)
+    // The link is the same kind of fact as the checksum: mechanical, derived from the
+    // file that was just built, and a 404 for every visitor if it is left behind.
+    .replace(/downloads\/Portico-Setup-[^"']+\.exe/g, `downloads/${path.basename(dest)}`)
+    // The version people read on the page, so it cannot disagree with what they download.
+    // Each pattern is anchored to a phrase that only ever means "the current release" —
+    // a bare "Version 1.2.3" is left alone, because that is how the changelog names its
+    // own history and rewriting those would erase it.
+    .replace(/Portico[- ]v?\d+\.\d+\.\d+/g, (m) => m.replace(/\d+\.\d+\.\d+/, VERSION))
+    .replace(/(Applies to version\s*)\d+\.\d+\.\d+/g, `$1${VERSION}`)
+    .replace(/(Current:\s*v?)\d+\.\d+\.\d+/g, `$1${VERSION}`)
+    .replace(/(Version\s*)\d+\.\d+\.\d+(\s*is current)/g, `$1${VERSION}$2`)
+    .replace(/(version:\s*')\d+\.\d+\.\d+(')/g, `$1${VERSION}$2`)
+    // structured data: what search engines and assistants read instead of the page
+    .replace(/("softwareVersion":\s*")\d+\.\d+\.\d+(")/g, `$1${VERSION}$2`)
+    .replace(/("downloadUrl":\s*"[^"]*\/)Portico-Setup-[\d.]+\.exe(")/g, `$1${path.basename(dest)}$2`);
   if (after !== before) { fs.writeFileSync(file, after); stamped++; }
 }
 console.log(`    sha256    : ${sha}`);
-console.log(`    stamped   : ${stamped} page(s) updated with checksum and size`);
+console.log(`    stamped   : ${stamped} page(s) updated with checksum, size, link and version`);
+
+// A sitemap whose dates never move tells a crawler the site never changes, which is
+// the opposite of what a release means. Take each date from the page's own file.
+const smPath = path.join(SITE, 'sitemap.xml');
+if (fs.existsSync(smPath)) {
+  let sm = fs.readFileSync(smPath, 'utf8');
+  let dated = 0;
+  sm = sm.replace(/<url>\s*<loc>([^<]+)<\/loc>([\s\S]*?)<\/url>/g, (whole, loc, rest) => {
+    const name = (loc.split('/').pop() || 'index.html') || 'index.html';
+    const file = path.join(SITE, name.includes('.') ? name : name + '.html');
+    if (!fs.existsSync(file)) return whole;
+    const day = fs.statSync(file).mtime.toISOString().slice(0, 10);
+    dated++;
+    return rest.includes('<lastmod>')
+      ? whole.replace(/<lastmod>[^<]*<\/lastmod>/, `<lastmod>${day}</lastmod>`)
+      : whole.replace('</loc>', `</loc>\n    <lastmod>${day}</lastmod>`);
+  });
+  fs.writeFileSync(smPath, sm);
+  console.log(`    sitemap   : ${dated} url(s) dated from the pages themselves`);
+}
 
 // the site links by filename, so a mismatch would 404 for every visitor
 const pages = fs.readdirSync(path.join(ROOT, '..', 'portico-site')).filter((f) => f.endsWith('.html'));

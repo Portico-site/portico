@@ -454,8 +454,12 @@ function registerIpc() {
     const wasLoaded = server.status().state === 'ready' ? server.status().modelPath : null;
     if (wasLoaded) { send('image-stage', { stage: 'freeing-vram' }); await server.stop(); }
 
+    // The prompt used to be the filename, which put what you asked for in plain text
+    // outside everything the keyring protects — readable by a backup tool, a sync
+    // client or a search indexer without opening a single file. The prompt lives in
+    // the conversation, which is encrypted; the name here only has to be unique.
     const outPath = path.join(app.getPath('userData'), 'images',
-      `${Date.now()}-${String(opts.prompt || 'image').replace(/[^a-z0-9]+/gi, '-').slice(0, 40).toLowerCase()}.png`);
+      `${Date.now()}-${require('crypto').randomBytes(3).toString('hex')}.png`);
     // Turbo and SDXL models need their own step/CFG/size, otherwise the output is mush.
     const preset = imagegen.modelPreset(model);
     try {
@@ -655,7 +659,7 @@ function registerIpc() {
     const m = CATALOG.find((x) => x.id === id);
     if (!m || downloader.isActive(id)) return false;
     const dest = path.join(store.getSettings().modelsDir, m.file);
-    downloader.download(id, m.url, dest).catch(() => {});
+    downloader.download(id, m.url, dest, m.sha256).catch(() => {});
     return true;
   });
   ipcMain.handle('cancel-download', (e, id) => downloader.cancel(id));
