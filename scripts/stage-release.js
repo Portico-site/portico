@@ -14,6 +14,9 @@ const crypto = require('crypto');
 const ROOT = path.join(__dirname, '..');
 const pkg = require(path.join(ROOT, 'package.json'));
 const VERSION = pkg.version;
+const gh = (pkg.build && pkg.build.publish || []).find((p) => p.provider === 'github') || {};
+const RELEASE_BASE = `https://github.com/${gh.owner}/${gh.repo}`;
+const ASSET_URL = `${RELEASE_BASE}/releases/download/v${VERSION}/Portico-Setup-${VERSION}.exe`;
 
 const built = path.join(ROOT, 'dist', `Portico Setup ${VERSION}.exe`);
 const siteDir = path.join(ROOT, '..', 'portico-site', 'downloads');
@@ -61,9 +64,12 @@ for (const p of fs.readdirSync(SITE).filter((f) => f.endsWith('.html'))) {
   const after = before
     .replace(/(sha256:\s*')[0-9A-Fa-f]{64}(')/g, `$1${sha}$2`)
     .replace(/(sizeMB:\s*)\d+/g, `$1${sizeMB}`)
-    // The link is the same kind of fact as the checksum: mechanical, derived from the
-    // file that was just built, and a 404 for every visitor if it is left behind.
-    .replace(/downloads\/Portico-Setup-[^"']+\.exe/g, `downloads/${path.basename(dest)}`)
+    // Where the download actually comes from. The installer is ~143 MB, over both
+    // GitHub's 100 MB file limit and Cloudflare Pages' 25 MB, so it cannot be committed
+    // beside the pages — every reference has to name the release asset instead. Left to
+    // a human this is a 404 for every visitor, which is why it is rewritten here.
+    .replace(/(?:downloads\/|https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/releases\/download\/v[\d.]+\/)Portico-Setup-[\d.]+\.exe/g,
+      ASSET_URL)
     // The version people read on the page, so it cannot disagree with what they download.
     // Each pattern is anchored to a phrase that only ever means "the current release" —
     // a bare "Version 1.2.3" is left alone, because that is how the changelog names its
@@ -101,18 +107,23 @@ if (fs.existsSync(smPath)) {
   console.log(`    sitemap   : ${dated} url(s) dated from the pages themselves`);
 }
 
-// the site links by filename, so a mismatch would 404 for every visitor
-const pages = fs.readdirSync(path.join(ROOT, '..', 'portico-site')).filter((f) => f.endsWith('.html'));
-const wanted = `downloads/${path.basename(dest)}`;
+// One wrong link here is a 404 for every visitor, so it is verified rather than assumed.
+const pages = fs.readdirSync(SITE).filter((f) => f.endsWith('.html'));
 const stale = [];
 for (const p of pages) {
-  const html = fs.readFileSync(path.join(ROOT, '..', 'portico-site', p), 'utf8');
-  const links = [...html.matchAll(/downloads\/(Portico-Setup-[^"']+\.exe)/g)].map((m) => m[1]);
-  if (links.some((l) => l !== path.basename(dest))) stale.push(p);
+  const html = fs.readFileSync(path.join(SITE, p), 'utf8');
+  // only quoted values: an href or a config string, never prose in a comment
+  const links = [...html.matchAll(/["']([^"']*Portico-Setup-[^"']+\.exe)["']/g)].map((m) => m[1]);
+  if (links.some((l) => l !== ASSET_URL)) stale.push(`${p} -> ${links.find((l) => l !== ASSET_URL)}`);
 }
 if (stale.length) {
-  console.log(`\n  WARNING: these pages still link to a different file: ${stale.join(', ')}`);
-  console.log(`  They should point at ${wanted}\n`);
+  console.log(`
+  WARNING: these pages do not point at the release asset:`);
+  for (const x of stale) console.log(`    ${x}`);
+  console.log(`  They should all point at ${ASSET_URL}
+`);
   process.exit(1);
 }
-console.log(`    links     : all pages point at ${wanted}\n`);
+console.log(`    download  : every page points at the v${VERSION} release asset`);
+console.log(`    note      : upload dist/Portico Setup ${VERSION}.exe to that release
+`);
